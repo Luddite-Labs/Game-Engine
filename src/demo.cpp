@@ -4,6 +4,7 @@
 #include <SDL3_ttf/SDL_ttf.h>
 #include <SDL3_mixer/SDL_mixer.h>
 #include <SDL3/SDL_assert.h>
+#include <clay.h>
 
 #include <glm/common.hpp>
 

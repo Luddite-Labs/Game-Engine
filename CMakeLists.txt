@@ -81,11 +81,16 @@ set(SDLMIXER_OPUS OFF)
 set(SDLMIXER_VENDORED ON)   # tell SDL_mixer to build its own dependencies
 add_subdirectory(external/SDL_mixer EXCLUDE_FROM_ALL)
 
+add_library(clay INTERFACE)
+target_include_directories(clay INTERFACE ${CMAKE_SOURCE_DIR}/external/clay/)
+
+
 target_link_libraries(${EXECUTABLE_NAME} PUBLIC 
 	SDL3::SDL3
 	SDL3_ttf::SDL3_ttf      # remove if you are not using SDL_ttf
     SDL3_mixer::SDL3_mixer  # remove if you are not using SDL_mixer
     glm
+    clay
 )
 target_compile_definitions(${EXECUTABLE_NAME} PUBLIC SDL_MAIN_USE_CALLBACKS)
 
