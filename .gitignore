@@ -1,3 +1,6 @@
+# clang
+.cache/
+
 # IDE files/folders
 .vscode/
 .vs/
