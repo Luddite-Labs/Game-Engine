@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.16)
 
 option(GAME_ENGINE_DEBUG_MODE "Enable debug mode" ON)
+set(GAME_ENGINE_DEFAULT_SHADER_DIR "${CMAKE_BINARY_DIR}/../data/shaders")
 
 # set the output directory for built objects.
 # This makes sure that the dynamic library goes into the build directory automatically.
@@ -42,6 +43,7 @@ target_include_directories( ${EXECUTABLE_NAME}
 )
 target_compile_definitions( ${EXECUTABLE_NAME}
 	PRIVATE GAME_ENGINE_DEBUG_MODE
+    PRIVATE -DGAME_ENGINE_DEFAULT_SHADER_DIR="${GAME_ENGINE_DEFAULT_SHADER_DIR}"
 )
 
 # glm
@@ -68,10 +70,14 @@ endif()
 
 # we use EXCLUDE_FROM_ALL so that its install targets and configs don't
 # pollute upwards into our configuration.
+set(SDL_SHARED ON)
 add_subdirectory(external/SDL EXCLUDE_FROM_ALL)
 
 set(SDLTTF_VENDORED ON) # tell SDL_ttf to build its own dependencies
 add_subdirectory(external/SDL_ttf EXCLUDE_FROM_ALL)	
+
+set(SDLSHADERCROSS_VENDORED ON)
+add_subdirectory(external/SDL_shadercross EXCLUDE_FROM_ALL)	
 
 set(SDLMIXER_MIDI_NATIVE OFF)     # disable formats we don't use to make the build faster and smaller. Also some of these don't work on all platforms so you'll need to do some experimentation.
 set(SDLMIXER_GME OFF)
@@ -81,16 +87,19 @@ set(SDLMIXER_OPUS OFF)
 set(SDLMIXER_VENDORED ON)   # tell SDL_mixer to build its own dependencies
 add_subdirectory(external/SDL_mixer EXCLUDE_FROM_ALL)
 
-add_library(clay INTERFACE)
-target_include_directories(clay INTERFACE ${CMAKE_SOURCE_DIR}/external/clay/)
-
+set(SDLIMAGE_VENDORED OFF)
+set(SDLIMAGE_AVIF OFF)	# disable formats we don't use to make the build faster and smaller.
+set(SDLIMAGE_BMP OFF)
+set(SDLIMAGE_WEBP OFF)
+add_subdirectory(external/SDL_image EXCLUDE_FROM_ALL)
 
 target_link_libraries(${EXECUTABLE_NAME} PUBLIC 
 	SDL3::SDL3
 	SDL3_ttf::SDL3_ttf      # remove if you are not using SDL_ttf
     SDL3_mixer::SDL3_mixer  # remove if you are not using SDL_mixer
+    SDL3_image::SDL3_image
+    SDL3_shadercross::SDL3_shadercross
     glm
-    clay
 )
 target_compile_definitions(${EXECUTABLE_NAME} PUBLIC SDL_MAIN_USE_CALLBACKS)
 

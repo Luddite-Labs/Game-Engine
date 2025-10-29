@@ -10,6 +10,9 @@
 [submodule "external/glm"]
 	path = external/glm
 	url = https://github.com/g-truc/glm
-[submodule "external/clay"]
-	path = external/clay
-	url = https://github.com/nicbarker/clay
+[submodule "external/SDL_image"]
+	path = external/SDL_image
+	url = https://github.com/libsdl-org/SDL_image
+[submodule "external/SDL_shadercross"]
+	path = external/SDL_shadercross
+	url = https://github.com/libsdl-org/SDL_shadercross/
