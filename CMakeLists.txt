@@ -32,14 +32,18 @@ endif()
 # Configuration file
 configure_file(${CMAKE_SOURCE_DIR}/.editorconfig .editorconfig COPYONLY)
 
+file(GLOB IMGUI_LIB_FILES external/imgui/*)
 file( GLOB_RECURSE SOURCE_FILES src/* )
 target_sources(${EXECUTABLE_NAME} 
-PRIVATE 
-	${SOURCE_FILES}
+    PRIVATE ${SOURCE_FILES}
+    ${IMGUI_LIB_FILES}
+    external/imgui/backends/imgui_impl_sdlgpu3.cpp
+    external/imgui/backends/imgui_impl_sdl3.cpp
 )
 target_include_directories( ${EXECUTABLE_NAME}
 	PRIVATE ${CMAKE_SOURCE_DIR}/src/
     PUBLIC ${CMAKE_BINARY_DIR}/
+    PRIVATE external/imgui/
 )
 target_compile_definitions( ${EXECUTABLE_NAME}
 	PRIVATE GAME_ENGINE_DEBUG_MODE

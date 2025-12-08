@@ -16,3 +16,6 @@
 [submodule "external/SDL_shadercross"]
 	path = external/SDL_shadercross
 	url = https://github.com/libsdl-org/SDL_shadercross/
+[submodule "external/imgui"]
+	path = external/imgui
+	url = https://github.com/ocornut/imgui/
