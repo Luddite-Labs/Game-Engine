@@ -1,3 +1,4 @@
+#include <cstdint>
 #define CLAY_IMPLEMENTATION
 
 #include <SDL3/SDL.h>
@@ -22,6 +23,7 @@
 #include <ui/engine-ui.hpp>
 
 struct AppContext {
+  Texture render_target;
   SDL_Window *window;
   Renderer *renderer;
   AudioEngine *audio_engine;
@@ -45,7 +47,7 @@ SDL_AppResult SDL_AppInit(void **app_state, int argc, char *argv[]) {
   }
 
   SDL_Window *window = SDL_CreateWindow(
-      "Window", 352, 430, SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY);
+      "Window", 800, 800, SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY);
   if (not window) {
     return SDL_Fail();
   }
@@ -70,6 +72,7 @@ SDL_AppResult SDL_AppInit(void **app_state, int argc, char *argv[]) {
 
   // set up the application data
   *app_state = new AppContext{
+      .render_target = renderer->createTexture(1960, 1080),
       .window = window,
       .renderer = renderer,
       .audio_engine = audio_engine,
@@ -90,8 +93,8 @@ SDL_AppResult SDL_AppInit(void **app_state, int argc, char *argv[]) {
     io.ConfigFlags |=
         ImGuiConfigFlags_NavEnableGamepad;            // Enable Gamepad Controls
     io.ConfigFlags |= ImGuiConfigFlags_DockingEnable; // Enable Docking
-    io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable; // Enable Multi-Viewport
-                                                        // / Platform Windows
+    // io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable; // Enable
+    // Multi-Viewport / Platform Windows
 
     // Setup Dear ImGui style
     ImGui::StyleColorsDark();
@@ -111,9 +114,9 @@ SDL_AppResult SDL_AppInit(void **app_state, int argc, char *argv[]) {
         true; // [Experimental] Automatically overwrite style.FontScaleDpi in
               // Begin() when Monitor DPI changes. This will scale fonts but
               // _NOT_ scale sizes/padding for now.
-    io.ConfigDpiScaleViewports =
-        true; // [Experimental] Scale Dear ImGui and Platform Windows when
-              // Monitor DPI changes.
+    // io.ConfigDpiScaleViewports =
+    //     true; // [Experimental] Scale Dear ImGui and Platform Windows when
+    // Monitor DPI changes.
 
     // When viewports are enabled we tweak WindowRounding/WindowBg so platform
     // windows can look identical to regular ones.
@@ -154,10 +157,9 @@ SDL_AppResult SDL_AppEvent(void *app_state, SDL_Event *event) {
 SDL_AppResult SDL_AppIterate(void *app_state) {
   auto *app = reinterpret_cast<AppContext *>(app_state);
 
-  int width, height;
+  app->renderer->drawToTexture(&app->render_target);
+
   ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
-  SDL_GetWindowSize(app->window, &width, &height);
-  // app->renderer->renderToWindow(app->engine_ui->generateDrawCommands());
   if (SDL_GetWindowFlags(app->window) & SDL_WINDOW_MINIMIZED) {
     SDL_Delay(10);
     return app->app_status;
@@ -170,6 +172,8 @@ SDL_AppResult SDL_AppIterate(void *app_state) {
 
   // 2. Show a simple window that we create ourselves. We use a Begin/End pair
   // to create a named window.
+
+  ImGui::DockSpaceOverViewport();
   ImGuiIO &io = ImGui::GetIO();
   {
     ImGui::Begin("test");
@@ -180,6 +184,17 @@ SDL_AppResult SDL_AppIterate(void *app_state) {
                 1000.0f / io.Framerate, io.Framerate);
     ImGui::End();
   }
+
+  {
+    ImGui::Begin("render-result");
+    ImGui::PushStyleVar(ImGuiStyleVar_ImageBorderSize, 1.0f);
+    ImGui::Image(static_cast<ImTextureID>(app->render_target.opq_handle),
+                 ImGui::GetContentRegionAvail());
+    ImGui::PopStyleVar();
+    ImGui::End();
+  }
+  // ImGui::ShowDemoWindow();
+  // ImGui::ShowMetricsWindow();
 
   // Rendering
   ImGui::Render();
@@ -232,7 +247,11 @@ SDL_AppResult SDL_AppIterate(void *app_state) {
 
 void SDL_AppQuit(void *app_state, SDL_AppResult result) {
   auto *app = reinterpret_cast<AppContext *>(app_state);
+  ImGui_ImplSDL3_Shutdown();
+  ImGui_ImplSDLGPU3_Shutdown();
+  ImGui::DestroyContext();
   if (app) {
+    app->renderer->destroyTexture(&app->render_target);
     delete app->renderer;
     delete app->audio_engine;
     delete app->physics_engine;
@@ -243,13 +262,5 @@ void SDL_AppQuit(void *app_state, SDL_AppResult result) {
   TTF_Quit();
 
   LOG_INFO("Application quit successfully!");
-  SDL_WaitForGPUIdle(app->renderer->getGPUDevice());
-  ImGui_ImplSDL3_Shutdown();
-  ImGui_ImplSDLGPU3_Shutdown();
-  ImGui::DestroyContext();
-
-  SDL_ReleaseWindowFromGPUDevice(app->renderer->getGPUDevice(), app->window);
-  SDL_DestroyGPUDevice(app->renderer->getGPUDevice());
-  SDL_DestroyWindow(app->window);
   SDL_Quit();
 }

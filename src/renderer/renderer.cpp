@@ -13,13 +13,44 @@ Renderer::Renderer(SDL_Window *_window) : m_window(_window), m_create_info() {
   m_GPU_device = SDL_CreateGPUDevice(SDL_GPU_SHADERFORMAT_SPIRV, true, NULL);
   SDL_assert(SDL_ClaimWindowForGPUDevice(m_GPU_device, m_window));
   m_supported_shader_formats = SDL_GetGPUShaderFormats(m_GPU_device);
-
-  Shader base_vertex_shader =
+  m_base_vert_shader =
       loadShader(GAME_ENGINE_DEFAULT_SHADER_DIR "/base.vert.hlsl", 0, 0, 0, 0,
                  ShaderType::vertex);
-  Shader base_frag_shader =
+  m_base_frag_shader =
       loadShader(GAME_ENGINE_DEFAULT_SHADER_DIR "/base.frag.hlsl", 0, 0, 0, 0,
                  ShaderType::fragment);
+
+  SDL_GPUColorTargetDescription color_target_descriptions[] = {
+      {.format = SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM}};
+  SDL_GPUGraphicsPipelineTargetInfo target_info = {
+      .color_target_descriptions = color_target_descriptions,
+      .num_color_targets = 1};
+  // Create the pipelines
+  SDL_GPUGraphicsPipelineCreateInfo pipelineCreateInfo = {
+      .vertex_shader = m_shader_table[m_base_vert_shader],
+      .fragment_shader = m_shader_table[m_base_frag_shader],
+      .primitive_type = SDL_GPU_PRIMITIVETYPE_TRIANGLELIST,
+      .target_info = target_info,
+  };
+  pipelineCreateInfo.rasterizer_state.fill_mode = SDL_GPU_FILLMODE_FILL;
+  m_fill_pipeline =
+      SDL_CreateGPUGraphicsPipeline(m_GPU_device, &pipelineCreateInfo);
+}
+
+Renderer::~Renderer() {
+  SDL_ReleaseGPUGraphicsPipeline(m_GPU_device, m_fill_pipeline);
+  destroyShader(m_base_vert_shader);
+  destroyShader(m_base_frag_shader);
+  SDL_WaitForGPUIdle(m_GPU_device);
+  SDL_ReleaseWindowFromGPUDevice(m_GPU_device, m_window);
+  SDL_DestroyGPUDevice(m_GPU_device);
+  SDL_DestroyWindow(m_window);
+  SDL_ShaderCross_Quit();
+}
+
+SDL_GPUDevice *Renderer::getGPUDevice() { return m_GPU_device; }
+
+void Renderer::draw() {
 
   SDL_GPUColorTargetDescription color_target_descriptions[] = {
       {.format = SDL_GetGPUSwapchainTextureFormat(m_GPU_device, m_window)}};
@@ -28,55 +59,76 @@ Renderer::Renderer(SDL_Window *_window) : m_window(_window), m_create_info() {
       .num_color_targets = 1};
   // Create the pipelines
   SDL_GPUGraphicsPipelineCreateInfo pipelineCreateInfo = {
-      .vertex_shader = m_shader_table[base_vertex_shader],
-      .fragment_shader = m_shader_table[base_frag_shader],
+      .vertex_shader = m_shader_table[m_base_vert_shader],
+      .fragment_shader = m_shader_table[m_base_frag_shader],
       .primitive_type = SDL_GPU_PRIMITIVETYPE_TRIANGLELIST,
-      .target_info = target_info,
+        .target_info = target_info,
   };
   pipelineCreateInfo.rasterizer_state.fill_mode = SDL_GPU_FILLMODE_FILL;
   m_fill_pipeline =
       SDL_CreateGPUGraphicsPipeline(m_GPU_device, &pipelineCreateInfo);
   SDL_assert(m_fill_pipeline);
+  SDL_GPUCommandBuffer *command_buffer =
+      SDL_AcquireGPUCommandBuffer(m_GPU_device);
+
+  SDL_GPUTexture *swapchain_texture;
+  SDL_assert(SDL_WaitAndAcquireGPUSwapchainTexture(
+      command_buffer, m_window, &swapchain_texture, NULL, NULL));
+
+  SDL_GPUColorTargetInfo color_target_infos[] = {
+      {.texture = swapchain_texture,
+       .mip_level = 0,
+       .layer_or_depth_plane = 0,
+       .clear_color = {.r = 0.878f, .g = 0.816f, .b = 1.0f},
+       .load_op = SDL_GPU_LOADOP_CLEAR,
+       .store_op = SDL_GPU_STOREOP_STORE,
+       .resolve_texture = nullptr,
+       .resolve_mip_level = 0,
+       .resolve_layer = 0,
+       .cycle = false,
+       .cycle_resolve_texture = false}};
+
+  SDL_assert(command_buffer);
+  SDL_GPURenderPass *render_pass =
+      SDL_BeginGPURenderPass(command_buffer, color_target_infos, 1, nullptr);
+
+  SDL_BindGPUGraphicsPipeline(render_pass, m_fill_pipeline);
+
+  SDL_DrawGPUPrimitives(render_pass, 3, 1, 0, 0);
+  SDL_EndGPURenderPass(render_pass);
+
+  SDL_SubmitGPUCommandBuffer(command_buffer);
 }
 
-Renderer::~Renderer() { SDL_ShaderCross_Quit(); }
+void Renderer::drawToTexture(Texture *tex) {
+  SDL_assert(m_fill_pipeline);
+  SDL_GPUCommandBuffer *command_buffer =
+      SDL_AcquireGPUCommandBuffer(m_GPU_device);
 
-SDL_GPUDevice *Renderer::getGPUDevice() {
-  return m_GPU_device;
+  SDL_GPUColorTargetInfo color_target_infos[] = {
+      {.texture = reinterpret_cast<SDL_GPUTexture *>(tex->opq_handle),
+       .mip_level = 0,
+       .layer_or_depth_plane = 0,
+       .clear_color = {.r = 0.878f, .g = 0.816f, .b = 1.0f, .a = 1.0f},
+       .load_op = SDL_GPU_LOADOP_CLEAR,
+       .store_op = SDL_GPU_STOREOP_STORE,
+       .resolve_texture = nullptr,
+       .resolve_mip_level = 0,
+       .resolve_layer = 0,
+       .cycle = false,
+       .cycle_resolve_texture = false}};
+
+  SDL_assert(command_buffer);
+  SDL_GPURenderPass *render_pass =
+      SDL_BeginGPURenderPass(command_buffer, color_target_infos, 1, nullptr);
+
+  SDL_BindGPUGraphicsPipeline(render_pass, m_fill_pipeline);
+
+  SDL_DrawGPUPrimitives(render_pass, 3, 1, 0, 0);
+  SDL_EndGPURenderPass(render_pass);
+
+  SDL_SubmitGPUCommandBuffer(command_buffer);
 }
-
-// void Renderer::renderToWindow(Clay_RenderCommandArray draw_commands) {
-//   SDL_GPUCommandBuffer *command_buffer =
-//       SDL_AcquireGPUCommandBuffer(m_GPU_device);
-
-//   SDL_GPUTexture *swapchain_texture;
-//   SDL_assert(SDL_WaitAndAcquireGPUSwapchainTexture(
-//       command_buffer, m_window, &swapchain_texture, NULL, NULL));
-
-//   SDL_GPUColorTargetInfo color_target_infos[] = {
-//       {.texture = swapchain_texture,
-//        .mip_level = 0,
-//        .layer_or_depth_plane = 0,
-//        .clear_color = {.r = 0.878f, .g = 0.816f, .b = 1.0f},
-//        .load_op = SDL_GPU_LOADOP_CLEAR,
-//        .store_op = SDL_GPU_STOREOP_STORE,
-//        .resolve_texture = nullptr,
-//        .resolve_mip_level = 0,
-//        .resolve_layer = 0,
-//        .cycle = false,
-//        .cycle_resolve_texture = false}};
-
-//   SDL_assert(command_buffer);
-//   SDL_GPURenderPass *render_pass =
-//       SDL_BeginGPURenderPass(command_buffer, color_target_infos, 1, nullptr);
-
-//   SDL_BindGPUGraphicsPipeline(render_pass, m_fill_pipeline);
-
-//   SDL_DrawGPUPrimitives(render_pass, 3, 1, 0, 0);
-//   SDL_EndGPURenderPass(render_pass);
-
-//   SDL_SubmitGPUCommandBuffer(command_buffer);
-// }
 
 // void Renderer::renderToTexture(Clay_RenderCommandArray draw_commands,
 //                                SDL_GPUTexture *target_texture, uint32_t
