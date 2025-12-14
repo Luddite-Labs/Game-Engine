@@ -1,12 +1,14 @@
 #pragma once
 #include "SDL3/SDL_assert.h"
 #include "SDL3/SDL_gpu.h"
+#include "glm/fwd.hpp"
 #include <SDL3/SDL.h>
 
 #include <cstdint>
 #include <string>
 #include <vector>
 
+#include <glm/vec3.hpp>
 #include <renderer/shader.hpp>
 
 typedef struct Buffer Buffer;
@@ -22,6 +24,24 @@ public:
   friend class Renderer;
 };
 
+struct Camera {
+public:
+  glm::vec3 target;
+  glm::vec3 position;
+  glm::vec3 up;
+  float fov;
+  float aspectRatio;
+  float nearPlane;
+  float farPlane;
+  Camera()
+      : fov(75.0f), aspectRatio(1.7777), nearPlane(20.0f), farPlane(60.0f),
+        up(0, 1, 0), position({30.0f, 30.0f, 0.0f}) {}
+};
+
+// struct Camera {
+//   glm::mat4x4 pro
+// };
+
 class Renderer {
 public:
   enum class ShaderType;
@@ -36,8 +56,13 @@ private:
   std::vector<SDL_GPUShader *> m_shader_table;
   std::vector<ShaderType> m_shader_type_record;
   SDL_GPUGraphicsPipeline *m_fill_pipeline;
+  SDL_GPUBuffer *mesh_vert_buffer;
+  SDL_GPUBuffer *mesh_index_buffer;
+
+  void uploadMeshData();
 
 public:
+  Camera camera;
   enum class ShaderType { vertex, fragment };
 
   Renderer(SDL_Window *_window);
@@ -59,8 +84,8 @@ public:
     const SDL_GPUTextureCreateInfo tex_info{
         .type = SDL_GPU_TEXTURETYPE_2D,
         .format = SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM,
-        .usage = SDL_GPU_TEXTUREUSAGE_COLOR_TARGET |
-                 SDL_GPU_TEXTUREUSAGE_SAMPLER,
+        .usage =
+            SDL_GPU_TEXTUREUSAGE_COLOR_TARGET | SDL_GPU_TEXTUREUSAGE_SAMPLER,
         .width = width,
         .height = height,
         .layer_count_or_depth = 1,

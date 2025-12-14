@@ -1,3 +1,5 @@
+#include "glm/geometric.hpp"
+#include "glm/gtc/type_ptr.hpp"
 #include <cstdint>
 #define CLAY_IMPLEMENTATION
 
@@ -184,6 +186,48 @@ SDL_AppResult SDL_AppIterate(void *app_state) {
                 1000.0f / io.Framerate, io.Framerate);
     ImGui::End();
   }
+  {
+    ImGui::Begin("Camera");
+    ImGui::SliderFloat("FOV: ", &app->renderer->camera.fov, 0.0f, 100.0f);
+    ImGui::SliderFloat("Near plane: ", &app->renderer->camera.nearPlane, 0.0f,
+                       100.0f);
+    ImGui::SliderFloat("Far plane: ", &app->renderer->camera.farPlane, 0.0f,
+                       100.0f);
+    ImGui::SliderFloat3("Target", glm::value_ptr(app->renderer->camera.target),
+                        -100.0f, 100.0f);
+    ImGui::SliderFloat3("Up", glm::value_ptr(app->renderer->camera.up), -100.0f,
+                        100.0f);
+    ImGui::SliderFloat3("Position",
+                        glm::value_ptr(app->renderer->camera.position), -100.0f,
+                        100.0f);
+    if (ImGui::IsKeyPressed(ImGuiKey_X)) {
+      app->renderer->camera.position =
+          app->renderer->camera.position -
+          glm::normalize(app->renderer->camera.target -
+                         app->renderer->camera.position);
+    } else if (ImGui::IsKeyPressed(ImGuiKey_Z)) {
+      app->renderer->camera.position =
+          app->renderer->camera.position +
+          glm::normalize(app->renderer->camera.target -
+                         app->renderer->camera.position);
+    }
+    if (ImGui::IsMouseDragging(2)) {
+      ImVec2 drag_delta = ImGui::GetMouseDragDelta(2);
+      glm::vec3 forward = glm::normalize(app->renderer->camera.target -
+                                         app->renderer->camera.position);
+      glm::vec3 W = -forward;
+      glm::vec3 U = glm::normalize(glm::cross(app->renderer->camera.up, W));
+      glm::vec3 V = glm::normalize(glm::cross(W, U));
+      float movement_factor = 0.01f;
+      app->renderer->camera.position = app->renderer->camera.position -
+                                       movement_factor * U * drag_delta.x +
+                                       movement_factor * V * drag_delta.y;
+      app->renderer->camera.target = app->renderer->camera.target -
+                                     movement_factor * U * drag_delta.x +
+                                     movement_factor * V * drag_delta.y;
+    }
+    ImGui::End();
+  }
 
   {
     ImGui::Begin("render-result");
@@ -242,6 +286,7 @@ SDL_AppResult SDL_AppIterate(void *app_state) {
 
   // Submit the command buffer
   SDL_SubmitGPUCommandBuffer(command_buffer);
+
   return app->app_status;
 }
 
