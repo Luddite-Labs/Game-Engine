@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 3.16)
 
 option(GAME_ENGINE_DEBUG_MODE "Enable debug mode" ON)
 set(GAME_ENGINE_DEFAULT_SHADER_DIR "${CMAKE_BINARY_DIR}/../data/shaders")
+set(GAME_ENGINE_DEFAULT_DATA_DIR "${CMAKE_BINARY_DIR}/../data/")
 
 # set the output directory for built objects.
 # This makes sure that the dynamic library goes into the build directory automatically.
@@ -48,10 +49,13 @@ target_include_directories( ${EXECUTABLE_NAME}
 target_compile_definitions( ${EXECUTABLE_NAME}
 	PRIVATE GAME_ENGINE_DEBUG_MODE
     PRIVATE -DGAME_ENGINE_DEFAULT_SHADER_DIR="${GAME_ENGINE_DEFAULT_SHADER_DIR}"
+    PRIVATE -DGAME_ENGINE_DEFAULT_DATA_DIR="${GAME_ENGINE_DEFAULT_DATA_DIR}"
 )
 
 # glm
 add_subdirectory( external/glm )
+
+add_subdirectory( external/fastgltf )
 
 # What is iosLaunchScreen.storyboard? This file describes what Apple's mobile platforms
 # should show the user while the application is starting up. If you don't include one,
@@ -104,6 +108,7 @@ target_link_libraries(${EXECUTABLE_NAME} PUBLIC
     SDL3_image::SDL3_image
     SDL3_shadercross::SDL3_shadercross
     glm
+    fastgltf
 )
 target_compile_definitions(${EXECUTABLE_NAME} PUBLIC SDL_MAIN_USE_CALLBACKS)
 

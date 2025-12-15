@@ -36,13 +36,27 @@ glm::mat4x4 generateViewProjMatrix(Camera *camera) {
   float fovFactor = 1.0f / SDL_tanf(radians / 2.0f);
   float dist = camera->farPlane - camera->nearPlane;
   float lambda = (camera->farPlane / dist);
-  glm::mat4x4 proj(fovFactor / camera->aspectRatio, 0, 0, 0,
+  glm::mat4x4 proj;
+  if (camera->is_orthogonal) {
+    proj = glm::mat4x4(2 / (100.0f * camera->aspectRatio), 0, 0, 0,
 
-                   0, fovFactor, 0, 0,
+                       0, 2 / (100.0f), 0, 0,
 
-                   0, 0, -lambda, -1,
+                       0, 0, -2 / (camera->farPlane - camera->nearPlane), 0,
 
-                   0, 0, lambda * camera->nearPlane, 0);
+                       0, 0,
+                       -(camera->farPlane + camera->nearPlane) /
+                           (camera->farPlane - camera->nearPlane),
+                       1);
+  } else {
+    proj = glm::mat4x4(fovFactor / camera->aspectRatio, 0, 0, 0,
+
+                       0, fovFactor, 0, 0,
+
+                       0, 0, -lambda, -1,
+
+                       0, 0, lambda * camera->nearPlane, 0);
+  }
   glm::mat4x4 viewproj = proj * view;
   return viewproj;
   // return {0.617629349,
@@ -294,7 +308,6 @@ void Renderer::drawToTexture(Texture *tex) {
   SDL_assert(command_buffer);
 
   glm::mat4x4 MVP = generateViewProjMatrix(&camera);
-  LOG_INFO("MVP is %s", glm::to_string(MVP).c_str());
   SDL_PushGPUVertexUniformData(command_buffer, 0, glm::value_ptr(MVP),
                                sizeof(float) * 16);
   SDL_GPURenderPass *render_pass =

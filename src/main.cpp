@@ -24,6 +24,8 @@
 #include <renderer/renderer.hpp>
 #include <ui/engine-ui.hpp>
 
+#include <fastgltf/core.hpp>
+
 struct AppContext {
   Texture render_target;
   SDL_Window *window;
@@ -40,6 +42,9 @@ SDL_AppResult SDL_Fail() {
 }
 
 SDL_AppResult SDL_AppInit(void **app_state, int argc, char *argv[]) {
+  auto gltfFile = fastgltf::GltfDataBuffer::FromPath(
+      GAME_ENGINE_DEFAULT_DATA_DIR "/scenes/utah-teapot/scene.gltf");
+  LOG_INFO("gltf file size % d", gltfFile->totalSize());
   if (not SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO)) {
     return SDL_Fail();
   }
@@ -200,6 +205,7 @@ SDL_AppResult SDL_AppIterate(void *app_state) {
     ImGui::SliderFloat3("Position",
                         glm::value_ptr(app->renderer->camera.position), -100.0f,
                         100.0f);
+    ImGui::Checkbox("Is Orthogonal?", &app->renderer->camera.is_orthogonal);
     if (ImGui::IsKeyPressed(ImGuiKey_X)) {
       app->renderer->camera.position =
           app->renderer->camera.position -
@@ -226,14 +232,28 @@ SDL_AppResult SDL_AppIterate(void *app_state) {
                                      movement_factor * U * drag_delta.x +
                                      movement_factor * V * drag_delta.y;
     }
+    if (ImGui::IsMouseDragging(1)) {
+      ImVec2 drag_delta = ImGui::GetMouseDragDelta(1);
+      glm::vec3 forward = glm::normalize(app->renderer->camera.target -
+                                         app->renderer->camera.position);
+      glm::vec3 W = -forward;
+      glm::vec3 U = glm::normalize(glm::cross(app->renderer->camera.up, W));
+      glm::vec3 V = glm::normalize(glm::cross(W, U));
+      float movement_factor = 0.01f;
+      app->renderer->camera.target = app->renderer->camera.target -
+                                     movement_factor * U * drag_delta.x +
+                                     movement_factor * V * drag_delta.y;
+    }
     ImGui::End();
   }
 
   {
     ImGui::Begin("render-result");
     ImGui::PushStyleVar(ImGuiStyleVar_ImageBorderSize, 1.0f);
+    auto content_region_avail = ImGui::GetContentRegionAvail();
+    app->renderer->camera.aspectRatio = content_region_avail.x / content_region_avail.y;
     ImGui::Image(static_cast<ImTextureID>(app->render_target.opq_handle),
-                 ImGui::GetContentRegionAvail());
+                 content_region_avail);
     ImGui::PopStyleVar();
     ImGui::End();
   }

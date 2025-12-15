@@ -26,6 +26,7 @@ public:
 
 struct Camera {
 public:
+  bool is_orthogonal;
   glm::vec3 target;
   glm::vec3 position;
   glm::vec3 up;
@@ -35,7 +36,7 @@ public:
   float farPlane;
   Camera()
       : fov(75.0f), aspectRatio(1.7777), nearPlane(20.0f), farPlane(60.0f),
-        up(0, 1, 0), position({30.0f, 30.0f, 0.0f}) {}
+        up(0, 1, 0), position({30.0f, 30.0f, 0.0f}), is_orthogonal(false) {}
 };
 
 // struct Camera {
