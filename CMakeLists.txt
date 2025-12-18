@@ -45,6 +45,7 @@ target_include_directories( ${EXECUTABLE_NAME}
 	PRIVATE ${CMAKE_SOURCE_DIR}/src/
     PUBLIC ${CMAKE_BINARY_DIR}/
     PRIVATE external/imgui/
+    PRIVATE external/stb
 )
 target_compile_definitions( ${EXECUTABLE_NAME}
 	PRIVATE GAME_ENGINE_DEBUG_MODE
@@ -53,6 +54,11 @@ target_compile_definitions( ${EXECUTABLE_NAME}
 )
 
 # glm
+target_compile_definitions(${EXECUTABLE_NAME}
+    PRIVATE GLM_ENABLE_EXPERIMENTAL
+    PRIVATE GLM_FORCE_DEPTH_ZERO_TO_ONE
+    PRIVATE GLM_FORCE_RADIANS
+)
 add_subdirectory( external/glm )
 
 add_subdirectory( external/fastgltf )

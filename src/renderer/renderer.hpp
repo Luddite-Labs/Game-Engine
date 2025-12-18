@@ -8,7 +8,10 @@
 #include <string>
 #include <vector>
 
+#include <glm/mat4x4.hpp>
+#include <glm/vec2.hpp>
 #include <glm/vec3.hpp>
+#include <glm/vec4.hpp>
 #include <renderer/shader.hpp>
 
 typedef struct Buffer Buffer;
@@ -18,6 +21,7 @@ public:
   uintptr_t opq_handle; //! make private in future
   uint32_t width;
   uint32_t height;
+  Texture() {}
   Texture(void *opq_handle, uint32_t width, uint32_t height)
       : opq_handle(reinterpret_cast<uintptr_t>(opq_handle)), width(width),
         height(height) {}
@@ -35,17 +39,40 @@ public:
   float nearPlane;
   float farPlane;
   Camera()
-      : fov(75.0f), aspectRatio(1.7777), nearPlane(20.0f), farPlane(60.0f),
-        up(0, 1, 0), position({30.0f, 30.0f, 0.0f}), is_orthogonal(false) {}
+      : fov(75.0f), aspectRatio(1.7777), nearPlane(1.0f), farPlane(100.0f),
+        up(0, 1, 0), position({10.0f, 10.0f, 0.0f}), target(0.0f, 0.0f, 0.0f), is_orthogonal(false) {}
 };
 
-// struct Camera {
-//   glm::mat4x4 pro
-// };
+struct MeshData {
+  // vertex position and normal interleaved data expected both float3
+  void *vert_buffer;
+  void *index_buffer;
+  glm::mat4x4 model_to_world;
+  Texture* uv_tex;
+  uint32_t vert_count;
+  uint32_t index_count;
+};
+
+struct MeshInternal {
+  SDL_GPUBuffer* vert_buffer;
+  SDL_GPUBuffer* index_buffer;
+  SDL_GPUTexture* uv_tex;
+  uint32_t vert_count;
+  uint32_t index_count;
+};
+
+struct Vertex {
+  glm::vec3 position;
+  glm::vec3 normal;
+  glm::vec2 uv;
+};
+
+typedef uint32_t Mesh;
 
 class Renderer {
 public:
   enum class ShaderType;
+  glm::vec4 clear_color;
 
 private:
   Shader m_base_vert_shader, m_base_frag_shader;
@@ -56,10 +83,9 @@ private:
   SDL_GPUGraphicsPipelineCreateInfo m_create_info;
   std::vector<SDL_GPUShader *> m_shader_table;
   std::vector<ShaderType> m_shader_type_record;
+  std::vector<MeshInternal> m_mesh_table;
   SDL_GPUGraphicsPipeline *m_fill_pipeline;
-  SDL_GPUBuffer *mesh_vert_buffer;
-  SDL_GPUBuffer *mesh_index_buffer;
-
+  Texture depth_buffer_texture;
   void uploadMeshData();
 
 public:
@@ -80,26 +106,8 @@ public:
   void draw();
   void drawToTexture(Texture *tex);
 
-  Texture createTexture(uint32_t width, uint32_t height) {
-    SDL_assert(m_window && m_GPU_device);
-    const SDL_GPUTextureCreateInfo tex_info{
-        .type = SDL_GPU_TEXTURETYPE_2D,
-        .format = SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM,
-        .usage =
-            SDL_GPU_TEXTUREUSAGE_COLOR_TARGET | SDL_GPU_TEXTUREUSAGE_SAMPLER,
-        .width = width,
-        .height = height,
-        .layer_count_or_depth = 1,
-        .num_levels = 1,
-        .sample_count = SDL_GPU_SAMPLECOUNT_1,
-        .props = 0};
-    SDL_GPUTexture *tex = SDL_CreateGPUTexture(m_GPU_device, &tex_info);
-    return Texture(tex, width, height);
-  }
-  void destroyTexture(Texture *tex) {
-    SDL_assert(m_window && m_GPU_device);
-    SDL_ReleaseGPUTexture(m_GPU_device,
-                          reinterpret_cast<SDL_GPUTexture *>(tex->opq_handle));
-    tex->opq_handle = reinterpret_cast<uintptr_t>(nullptr);
-  }
+  Texture createTexture(uint32_t width, uint32_t height);
+  void destroyTexture(Texture *tex);
+
+  Mesh createMesh(MeshData* mesh);
 };

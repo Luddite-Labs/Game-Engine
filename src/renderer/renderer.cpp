@@ -1,24 +1,45 @@
+#include <cstring>
+#include <renderer/renderer.hpp>
+
+#include "glm/ext/matrix_clip_space.hpp"
 #include <SDL3/SDL_filesystem.h>
 #include <SDL3/SDL_gpu.h>
 #include <SDL3_shadercross/SDL_shadercross.h>
 
-#include <cstddef>
-#include <cstdint>
-#include <glm/glm.hpp>
-#include <glm/gtc/type_ptr.hpp>
-#include <glm/mat4x4.hpp>
-#include <misc/log.hpp>
-#include <renderer/renderer.hpp>
-
-#define GLM_ENABLE_EXPERIMENTAL
 #include "SDL3/SDL_assert.h"
 #include "SDL3/SDL_error.h"
 #include "SDL3/SDL_stdinc.h"
 #include "glm/ext.hpp"
 #include "glm/fwd.hpp"
 #include "glm/geometric.hpp"
+#include <cstddef>
+#include <cstdint>
+#include <glm/glm.hpp>
+#include <glm/gtc/type_ptr.hpp>
+#include <misc/log.hpp>
 
-glm::mat4x4 generateViewProjMatrix(Camera *camera) {
+glm::mat4x4 generateProjMatrix(Camera *camera) {
+  float radians = (camera->fov * SDL_PI_F) / 180.0f;
+  float fovFactor = 1.0f / SDL_tanf(radians / 2.0f);
+  float dist = camera->farPlane - camera->nearPlane;
+  float lambda = (camera->farPlane / dist);
+  glm::mat4x4 proj;
+  if (camera->is_orthogonal) {
+    proj = glm::ortho(-50.0f, 50.0f, -50.0f, 50.0f);
+  } else {
+    proj = glm::perspective(radians, camera->aspectRatio, camera->nearPlane,
+                            camera->farPlane);
+    // proj = glm::mat4x4(fovFactor / camera->aspectRatio, 0, 0, 0,
+
+    //                    0, fovFactor, 0, 0,
+
+    //                    0, 0, -lambda, -1,
+
+    //                    0, 0, -lambda * camera->nearPlane, 0);
+  }
+  return proj;
+}
+glm::mat4x4 generateViewMatrix(Camera *camera) {
   glm::vec3 forward = glm::normalize(camera->target - camera->position);
   glm::vec3 W = -forward;
   glm::vec3 U = glm::normalize(glm::cross(camera->up, W));
@@ -32,54 +53,12 @@ glm::mat4x4 generateViewProjMatrix(Camera *camera) {
                    glm::vec4(-glm::dot(U, camera->position),
                              -glm::dot(V, camera->position),
                              -glm::dot(W, camera->position), 1.0f));
-  float radians = (camera->fov * SDL_PI_F) / 180.0f;
-  float fovFactor = 1.0f / SDL_tanf(radians / 2.0f);
-  float dist = camera->farPlane - camera->nearPlane;
-  float lambda = (camera->farPlane / dist);
-  glm::mat4x4 proj;
-  if (camera->is_orthogonal) {
-    proj = glm::mat4x4(2 / (100.0f * camera->aspectRatio), 0, 0, 0,
-
-                       0, 2 / (100.0f), 0, 0,
-
-                       0, 0, -2 / (camera->farPlane - camera->nearPlane), 0,
-
-                       0, 0,
-                       -(camera->farPlane + camera->nearPlane) /
-                           (camera->farPlane - camera->nearPlane),
-                       1);
-  } else {
-    proj = glm::mat4x4(fovFactor / camera->aspectRatio, 0, 0, 0,
-
-                       0, fovFactor, 0, 0,
-
-                       0, 0, -lambda, -1,
-
-                       0, 0, lambda * camera->nearPlane, 0);
-  }
-  glm::mat4x4 viewproj = proj * view;
-  return viewproj;
-  // return {0.617629349,
-  //         -0.714224815,
-  //         -0.822066069,
-  //         -0.548044026,
-  //         0,
-  //         0.921519339,
-  //         -1.06066012,
-  //         -0.707106769,
-  //         -0.757549822,
-  //         -0.582306504,
-  //         -0.670229375,
-  //         -0.446819574,
-  //         0,
-  //         1.24285248e-06,
-  //         33.6396103,
-  //         42.4264069};
+  return view;
 }
 
 Renderer::Renderer(SDL_Window *_window)
-    : m_window(_window), m_create_info(), mesh_vert_buffer(nullptr),
-      mesh_index_buffer(nullptr), camera() {
+    : m_window(_window), m_create_info(), camera(),
+      clear_color(0.0f, 0.0f, 0.0f, 1.0f), depth_buffer_texture() {
   SDL_assert(SDL_ShaderCross_Init());
   m_GPU_device = SDL_CreateGPUDevice(SDL_GPU_SHADERFORMAT_SPIRV, true, NULL);
   SDL_assert(SDL_ClaimWindowForGPUDevice(m_GPU_device, m_window));
@@ -95,16 +74,27 @@ Renderer::Renderer(SDL_Window *_window)
       {.format = SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM}};
   SDL_GPUGraphicsPipelineTargetInfo target_info = {
       .color_target_descriptions = color_target_descriptions,
-      .num_color_targets = 1};
+      .num_color_targets = 1,
+      .depth_stencil_format = SDL_GPU_TEXTUREFORMAT_D16_UNORM,
+      .has_depth_stencil_target = true,
+  };
   // Create the pipelines
   SDL_GPUVertexAttribute vert_attrs[] = {
       {.location = 0,
        .buffer_slot = 0,
        .format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3,
-       .offset = 0}};
+       .offset = 0},
+      {.location = 1,
+       .buffer_slot = 0,
+       .format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3,
+       .offset = sizeof(glm::vec3)},
+    {.location = 2,
+       .buffer_slot = 0,
+       .format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT2,
+       .offset = sizeof(glm::vec2) + sizeof(glm::vec3)}};
   SDL_GPUVertexBufferDescription vert_buffer_descriptions[] = {
       {.slot = 0,
-       .pitch = sizeof(float) * 3,
+       .pitch = sizeof(Vertex),
        .input_rate = SDL_GPU_VERTEXINPUTRATE_VERTEX,
        .instance_step_rate = 0}};
   SDL_GPUGraphicsPipelineCreateInfo pipelineCreateInfo = {
@@ -114,21 +104,33 @@ Renderer::Renderer(SDL_Window *_window)
                                  vert_buffer_descriptions,
                              .num_vertex_buffers = 1,
                              .vertex_attributes = vert_attrs,
-                             .num_vertex_attributes = 1},
+                             .num_vertex_attributes = 3},
       .primitive_type = SDL_GPU_PRIMITIVETYPE_TRIANGLELIST,
       .rasterizer_state = {.fill_mode = SDL_GPU_FILLMODE_FILL,
-                           .cull_mode = SDL_GPU_CULLMODE_NONE,
+                           .cull_mode = SDL_GPU_CULLMODE_BACK,
                            .front_face = SDL_GPU_FRONTFACE_COUNTER_CLOCKWISE},
+      .depth_stencil_state =
+          {
+              .compare_op = SDL_GPU_COMPAREOP_LESS,
+              .write_mask = 0xFF,
+              .enable_depth_test = true,
+              .enable_depth_write = true,
+              .enable_stencil_test = false,
+          },
       .target_info = target_info,
   };
-  pipelineCreateInfo.rasterizer_state.fill_mode = SDL_GPU_FILLMODE_FILL;
   m_fill_pipeline =
       SDL_CreateGPUGraphicsPipeline(m_GPU_device, &pipelineCreateInfo);
 }
 
 Renderer::~Renderer() {
-  SDL_ReleaseGPUBuffer(m_GPU_device, mesh_vert_buffer);
-  SDL_ReleaseGPUBuffer(m_GPU_device, mesh_index_buffer);
+  for (auto &mesh : m_mesh_table) {
+    SDL_ReleaseGPUBuffer(m_GPU_device, mesh.vert_buffer);
+    SDL_ReleaseGPUBuffer(m_GPU_device, mesh.index_buffer);
+    mesh.vert_buffer = nullptr;
+    mesh.index_buffer = nullptr;
+  }
+  destroyTexture(&depth_buffer_texture);
   SDL_ReleaseGPUGraphicsPipeline(m_GPU_device, m_fill_pipeline);
   destroyShader(m_base_vert_shader);
   destroyShader(m_base_frag_shader);
@@ -142,6 +144,7 @@ Renderer::~Renderer() {
 SDL_GPUDevice *Renderer::getGPUDevice() { return m_GPU_device; }
 
 void Renderer::draw() {
+
   SDL_GPUColorTargetDescription color_target_descriptions[] = {
       {.format = SDL_GetGPUSwapchainTextureFormat(m_GPU_device, m_window)}};
   SDL_GPUGraphicsPipelineTargetInfo target_info = {
@@ -190,81 +193,41 @@ void Renderer::draw() {
   SDL_SubmitGPUCommandBuffer(command_buffer);
 }
 
-void Renderer::uploadMeshData() {
-  if (mesh_vert_buffer != nullptr && mesh_index_buffer != nullptr) {
-    return;
-  }
+Mesh Renderer::createMesh(MeshData *mesh_data) {
+  m_mesh_table.emplace_back();
+  MeshInternal &mesh_internal = m_mesh_table.back();
+
+  uint32_t vert_bytes =
+      static_cast<uint32_t>(sizeof(Vertex) * mesh_data->vert_count);
+  uint32_t index_bytes =
+      static_cast<uint32_t>(sizeof(uint16_t) * mesh_data->index_count);
+
   SDL_GPUBufferCreateInfo vert_buffer_info = {
-      .usage = SDL_GPU_BUFFERUSAGE_VERTEX, .size = sizeof(float) * 3 * 8};
+      .usage = SDL_GPU_BUFFERUSAGE_VERTEX, .size = vert_bytes};
   SDL_GPUBufferCreateInfo index_buffer_info = {
-      .usage = SDL_GPU_BUFFERUSAGE_INDEX, .size = sizeof(uint16_t) * 36};
-  mesh_vert_buffer = SDL_CreateGPUBuffer(m_GPU_device, &vert_buffer_info);
-  mesh_index_buffer = SDL_CreateGPUBuffer(m_GPU_device, &index_buffer_info);
+      .usage = SDL_GPU_BUFFERUSAGE_INDEX, .size = index_bytes};
+  SDL_GPUBuffer *mesh_vert_buffer =
+      SDL_CreateGPUBuffer(m_GPU_device, &vert_buffer_info);
+  SDL_GPUBuffer *mesh_index_buffer =
+      SDL_CreateGPUBuffer(m_GPU_device, &index_buffer_info);
+
+  mesh_internal.vert_buffer = mesh_vert_buffer;
+  mesh_internal.index_buffer = mesh_index_buffer;
+  mesh_internal.vert_count = mesh_data->vert_count;
+  mesh_internal.index_count = mesh_data->index_count;
+
   SDL_GPUTransferBufferCreateInfo transfer_create_info = {
       .usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD,
-      .size = sizeof(float) * 3 * 8 + sizeof(uint16_t) * 36};
+      .size = vert_bytes + index_bytes};
   SDL_GPUTransferBuffer *transfer_buffer =
       SDL_CreateGPUTransferBuffer(m_GPU_device, &transfer_create_info);
-
-  float *transferData = static_cast<float *>(
+  uint8_t *transfer_buffer_ptr = static_cast<uint8_t *>(
       SDL_MapGPUTransferBuffer(m_GPU_device, transfer_buffer, false));
-  transferData[0] = 0.0f;
-  transferData[1] = 0.0f;
-  transferData[2] = 0.0f;
 
-  transferData[3] = 0.0f;
-  transferData[4] = 10.0f;
-  transferData[5] = 0.0f;
+  SDL_memcpy(transfer_buffer_ptr, mesh_data->vert_buffer, vert_bytes);
+  SDL_memcpy((transfer_buffer_ptr + vert_bytes), mesh_data->index_buffer,
+             index_bytes);
 
-  transferData[6] = 10.0f;
-  transferData[7] = 10.0f;
-  transferData[8] = 0.0f;
-
-  transferData[9] = 10.0f;
-  transferData[10] = 0.0f;
-  transferData[11] = 0.0f;
-
-  transferData[12] = 0.0f;
-  transferData[13] = 0.0f;
-  transferData[14] = 10.0f;
-
-  transferData[15] = 0.0f;
-  transferData[16] = 10.0f;
-  transferData[17] = 10.0f;
-
-  transferData[18] = 10.0f;
-  transferData[19] = 10.0f;
-  transferData[20] = 10.0f;
-
-  transferData[21] = 10.0f;
-  transferData[22] = 0.0f;
-  transferData[23] = 10.0f;
-
-  uint16_t *indexData = reinterpret_cast<uint16_t *>(&transferData[24]);
-  uint16_t indices[] = {2, 6, 7,
-
-                        2, 7, 3,
-
-                        0, 4, 5,
-
-                        0, 5, 1,
-
-                        6, 2, 1,
-
-                        6, 1, 5,
-
-                        3, 7, 5,
-
-                        3, 4, 0,
-
-                        7, 6, 5,
-
-                        7, 5, 4,
-
-                        2, 3, 0,
-
-                        2, 0, 1};
-  SDL_memcpy(indexData, indices, sizeof(indices));
   SDL_UnmapGPUTransferBuffer(m_GPU_device, transfer_buffer);
   SDL_GPUCommandBuffer *uploadCmdBuf =
       SDL_AcquireGPUCommandBuffer(m_GPU_device);
@@ -272,23 +235,49 @@ void Renderer::uploadMeshData() {
   SDL_GPUTransferBufferLocation vert_transfer_location = {
       .transfer_buffer = transfer_buffer, .offset = 0};
   SDL_GPUBufferRegion vert_region_location = {
-      .buffer = mesh_vert_buffer, .offset = 0, .size = sizeof(float) * 3 * 8};
+      .buffer = mesh_vert_buffer, .offset = 0, .size = vert_bytes};
   SDL_UploadToGPUBuffer(copy_pass, &vert_transfer_location,
                         &vert_region_location, false);
   SDL_GPUTransferBufferLocation index_transfer_location = {
-      .transfer_buffer = transfer_buffer, .offset = sizeof(float) * 3 * 8};
+      .transfer_buffer = transfer_buffer, .offset = vert_bytes};
   SDL_GPUBufferRegion index_region_location = {
-      .buffer = mesh_index_buffer, .offset = 0, .size = sizeof(uint16_t) * 36};
+      .buffer = mesh_index_buffer, .offset = 0, .size = index_bytes};
   SDL_UploadToGPUBuffer(copy_pass, &index_transfer_location,
                         &index_region_location, false);
   SDL_EndGPUCopyPass(copy_pass);
   SDL_SubmitGPUCommandBuffer(uploadCmdBuf);
   SDL_ReleaseGPUTransferBuffer(m_GPU_device, transfer_buffer);
+  return m_mesh_table.size() - 1;
 }
+
+struct TransformMatrices {
+  glm::mat4x4 view;
+  glm::mat4x4 proj;
+};
 
 void Renderer::drawToTexture(Texture *tex) {
   SDL_assert(m_fill_pipeline);
-  uploadMeshData();
+  if (depth_buffer_texture.width != tex->width or
+      depth_buffer_texture.height != tex->height) {
+    const SDL_GPUTextureCreateInfo tex_info{
+        .type = SDL_GPU_TEXTURETYPE_2D,
+        .format = SDL_GPU_TEXTUREFORMAT_D16_UNORM,
+        .usage = SDL_GPU_TEXTUREUSAGE_SAMPLER |
+                 SDL_GPU_TEXTUREUSAGE_DEPTH_STENCIL_TARGET,
+        .width = tex->width,
+        .height = tex->height,
+        .layer_count_or_depth = 1,
+        .num_levels = 1,
+        .sample_count = SDL_GPU_SAMPLECOUNT_1,
+    };
+    SDL_GPUTexture *depth_texture =
+        SDL_CreateGPUTexture(m_GPU_device, &tex_info);
+    depth_buffer_texture.width = tex->width;
+    depth_buffer_texture.height = tex->height;
+    depth_buffer_texture.opq_handle =
+        reinterpret_cast<uintptr_t>(depth_texture);
+  }
+
   SDL_GPUCommandBuffer *command_buffer =
       SDL_AcquireGPUCommandBuffer(m_GPU_device);
 
@@ -296,7 +285,10 @@ void Renderer::drawToTexture(Texture *tex) {
       {.texture = reinterpret_cast<SDL_GPUTexture *>(tex->opq_handle),
        .mip_level = 0,
        .layer_or_depth_plane = 0,
-       .clear_color = {.r = 0.01f, .g = 0.01f, .b = 0.01f, .a = 1.0f},
+       .clear_color = {.r = clear_color.r,
+                       .g = clear_color.g,
+                       .b = clear_color.b,
+                       .a = clear_color.a},
        .load_op = SDL_GPU_LOADOP_CLEAR,
        .store_op = SDL_GPU_STOREOP_STORE,
        .resolve_texture = nullptr,
@@ -304,25 +296,38 @@ void Renderer::drawToTexture(Texture *tex) {
        .resolve_layer = 0,
        .cycle = false,
        .cycle_resolve_texture = false}};
-
+  SDL_GPUDepthStencilTargetInfo depth_stencil_target_info = {
+      .texture =
+          reinterpret_cast<SDL_GPUTexture *>(depth_buffer_texture.opq_handle),
+      .clear_depth = 1,
+      .load_op = SDL_GPU_LOADOP_CLEAR,
+      .store_op = SDL_GPU_STOREOP_STORE,
+      .stencil_load_op = SDL_GPU_LOADOP_CLEAR,
+      .stencil_store_op = SDL_GPU_STOREOP_STORE,
+      .cycle = true,
+      .clear_stencil = 0,
+  };
   SDL_assert(command_buffer);
+  TransformMatrices transform_matrices;
+  transform_matrices.view = generateViewMatrix(&camera);
+  transform_matrices.proj = generateProjMatrix(&camera);
+  SDL_PushGPUVertexUniformData(command_buffer, 0, &transform_matrices,
+                               sizeof(transform_matrices));
+  SDL_GPURenderPass *render_pass = SDL_BeginGPURenderPass(
+      command_buffer, color_target_infos, 1, &depth_stencil_target_info);
+  for (auto &mesh : m_mesh_table) {
+    SDL_GPUBufferBinding vert_binding = {.buffer = mesh.vert_buffer,
+                                         .offset = 0};
+    SDL_GPUBufferBinding index_binding = {.buffer = mesh.index_buffer,
+                                          .offset = 0};
+    SDL_BindGPUVertexBuffers(render_pass, 0, &vert_binding, 1);
+    SDL_BindGPUIndexBuffer(render_pass, &index_binding,
+                           SDL_GPU_INDEXELEMENTSIZE_16BIT);
+    SDL_BindGPUGraphicsPipeline(render_pass, m_fill_pipeline);
 
-  glm::mat4x4 MVP = generateViewProjMatrix(&camera);
-  SDL_PushGPUVertexUniformData(command_buffer, 0, glm::value_ptr(MVP),
-                               sizeof(float) * 16);
-  SDL_GPURenderPass *render_pass =
-      SDL_BeginGPURenderPass(command_buffer, color_target_infos, 1, nullptr);
-  SDL_GPUBufferBinding vert_binding = {.buffer = mesh_vert_buffer, .offset = 0};
-  SDL_GPUBufferBinding index_binding = {.buffer = mesh_index_buffer,
-                                        .offset = 0};
-  SDL_BindGPUVertexBuffers(render_pass, 0, &vert_binding, 1);
-  SDL_BindGPUIndexBuffer(render_pass, &index_binding,
-                         SDL_GPU_INDEXELEMENTSIZE_16BIT);
-  SDL_BindGPUGraphicsPipeline(render_pass, m_fill_pipeline);
-
-  SDL_DrawGPUIndexedPrimitives(render_pass, 36, 1, 0, 0, 0);
+    SDL_DrawGPUIndexedPrimitives(render_pass, mesh.index_count, 1, 0, 0, 0);
+  }
   SDL_EndGPURenderPass(render_pass);
-
   SDL_SubmitGPUCommandBuffer(command_buffer);
 }
 
@@ -364,6 +369,10 @@ Shader Renderer::loadShader(const std::string &shader_file_path,
 
   SDL_GPUShader *shader = SDL_ShaderCross_CompileGraphicsShaderFromHLSL(
       m_GPU_device, &hlsl_info, &shadercross_graphics_metadata);
+  auto shader_error = SDL_GetError();
+  if (strlen(shader_error) != 0) {
+    LOG_ERROR(shader_error);
+  }
   SDL_assert(shader != nullptr);
   m_shader_table.push_back(shader);
   m_shader_type_record.push_back(shader_type);
@@ -376,4 +385,26 @@ void Renderer::destroyShader(Shader &shader) {
   m_shader_table.erase(m_shader_table.begin() + shader);
   m_shader_type_record.erase(m_shader_type_record.begin() + shader);
   shader = -1;
+}
+
+Texture Renderer::createTexture(uint32_t width, uint32_t height) {
+  SDL_assert(m_window && m_GPU_device);
+  const SDL_GPUTextureCreateInfo tex_info{
+      .type = SDL_GPU_TEXTURETYPE_2D,
+      .format = SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM,
+      .usage = SDL_GPU_TEXTUREUSAGE_COLOR_TARGET | SDL_GPU_TEXTUREUSAGE_SAMPLER,
+      .width = width,
+      .height = height,
+      .layer_count_or_depth = 1,
+      .num_levels = 1,
+      .sample_count = SDL_GPU_SAMPLECOUNT_1,
+      .props = 0};
+  SDL_GPUTexture *tex = SDL_CreateGPUTexture(m_GPU_device, &tex_info);
+  return Texture(tex, width, height);
+}
+void Renderer::destroyTexture(Texture *tex) {
+  SDL_assert(m_window && m_GPU_device);
+  SDL_ReleaseGPUTexture(m_GPU_device,
+                        reinterpret_cast<SDL_GPUTexture *>(tex->opq_handle));
+  tex->opq_handle = reinterpret_cast<uintptr_t>(nullptr);
 }

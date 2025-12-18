@@ -1,3 +1,7 @@
+#include "SDL3/SDL_stdinc.h"
+#include "glm/ext/quaternion_trigonometric.hpp"
+#include "glm/ext/scalar_constants.hpp"
+#include "glm/ext/scalar_relational.hpp"
 #include "glm/geometric.hpp"
 #include "glm/gtc/type_ptr.hpp"
 #include <cstdint>
@@ -25,6 +29,11 @@
 #include <ui/engine-ui.hpp>
 
 #include <fastgltf/core.hpp>
+#include <fastgltf/glm_element_traits.hpp>
+#include <fastgltf/tools.hpp>
+#include <fastgltf/types.hpp>
+
+#include <glm/vec3.hpp>
 
 struct AppContext {
   Texture render_target;
@@ -34,6 +43,9 @@ struct AppContext {
   PhysicsEngine *physics_engine;
   EngineUI *engine_ui;
   SDL_AppResult app_status = SDL_APP_CONTINUE;
+  bool isFirstFameDragging = true;
+  glm::vec2 prev_mouse_position;
+  float prev_mouse_cursor;
 };
 
 SDL_AppResult SDL_Fail() {
@@ -42,9 +54,6 @@ SDL_AppResult SDL_Fail() {
 }
 
 SDL_AppResult SDL_AppInit(void **app_state, int argc, char *argv[]) {
-  auto gltfFile = fastgltf::GltfDataBuffer::FromPath(
-      GAME_ENGINE_DEFAULT_DATA_DIR "/scenes/utah-teapot/scene.gltf");
-  LOG_INFO("gltf file size % d", gltfFile->totalSize());
   if (not SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO)) {
     return SDL_Fail();
   }
@@ -86,6 +95,83 @@ SDL_AppResult SDL_AppInit(void **app_state, int argc, char *argv[]) {
       .physics_engine = physics_engine,
       .engine_ui = engine_ui,
   };
+
+  fastgltf::Extensions extensions;
+  fastgltf::Parser parser(extensions);
+  auto gltfFile = fastgltf::GltfDataBuffer::FromPath(
+      GAME_ENGINE_DEFAULT_DATA_DIR "/scenes/shiba/scene.gltf");
+  auto asset = parser.loadGltf(gltfFile.get(),
+                               GAME_ENGINE_DEFAULT_DATA_DIR "/scenes/shiba/",
+                               fastgltf::Options::GenerateMeshIndices |
+                                   fastgltf::Options::LoadExternalBuffers);
+  std::vector<uint16_t> indices;
+  std::vector<Vertex> vertices;
+  for (auto &mesh : asset->meshes) {
+
+    indices.clear();
+    vertices.clear();
+    for (auto &&p : mesh.primitives) {
+      size_t initial_vtx = vertices.size();
+      // load indexes
+      {
+        fastgltf::Accessor &indexaccessor =
+            asset->accessors[p.indicesAccessor.value()];
+        indices.reserve(indices.size() + indexaccessor.count);
+
+        fastgltf::iterateAccessor<uint32_t>(
+            asset.get(), indexaccessor, [&](uint32_t idx) {
+              indices.push_back(static_cast<uint16_t>(idx + initial_vtx));
+            });
+      }
+
+      // load vertex positions
+      {
+        fastgltf::Accessor &posAccessor =
+            asset->accessors[p.findAttribute("POSITION")->accessorIndex];
+        vertices.resize(vertices.size() + posAccessor.count);
+
+        fastgltf::iterateAccessorWithIndex<glm::vec3>(
+            asset.get(), posAccessor, [&](glm::vec3 v, size_t index) {
+              Vertex newvtx;
+              newvtx.position = v;
+              newvtx.normal = {1, 0, 0};
+              vertices[initial_vtx + index] = newvtx;
+            });
+      }
+
+      // load UV
+      {
+        auto at_it = p.findAttribute("TEXCOORD_0");
+        if (at_it != p.attributes.end()) {
+          fastgltf::Accessor &uvAccessor =
+              asset->accessors[at_it->accessorIndex];
+          fastgltf::iterateAccessorWithIndex<glm::vec2>(
+              asset.get(), uvAccessor, [&](glm::vec2 v, size_t index) {
+                vertices[initial_vtx + index].uv = v;
+              });
+        }
+      }
+      
+      // load vertex normals
+      auto normals = p.findAttribute("NORMAL");
+      if (normals != p.attributes.end()) {
+
+        fastgltf::iterateAccessorWithIndex<glm::vec3>(
+            asset.get(), asset->accessors[(*normals).accessorIndex],
+            [&](glm::vec3 v, size_t index) {
+              vertices[initial_vtx + index].normal = v;
+            });
+      }
+      MeshData mesh_data = {
+          .vert_buffer = static_cast<void *>(vertices.data()),
+          .index_buffer = static_cast<void *>(indices.data()),
+          .vert_count = static_cast<uint32_t>(vertices.size()),
+          .index_count = static_cast<uint32_t>(indices.size())};
+      renderer->createMesh(&mesh_data);
+    }
+  }
+
+  LOG_INFO("gltf file size % d", gltfFile->totalSize());
 
   LOG_INFO("Application started successfully!");
 
@@ -145,7 +231,8 @@ SDL_AppResult SDL_AppInit(void **app_state, int argc, char *argv[]) {
     init_info.PresentMode = SDL_GPU_PRESENTMODE_VSYNC;
     ImGui_ImplSDLGPU3_Init(&init_info);
   }
-
+  reinterpret_cast<AppContext *>(app_state)->prev_mouse_cursor =
+      ImGui::GetIO().MouseWheel;
   return SDL_APP_CONTINUE;
 }
 
@@ -182,8 +269,25 @@ SDL_AppResult SDL_AppIterate(void *app_state) {
 
   ImGui::DockSpaceOverViewport();
   ImGuiIO &io = ImGui::GetIO();
+
+  float render_width = 0.0f;
+  {
+    ImGui::Begin("render-result");
+    ImGui::PushStyleVar(ImGuiStyleVar_ImageBorderSize, 1.0f);
+    auto content_region_avail = ImGui::GetContentRegionAvail();
+    render_width = content_region_avail.x;
+    app->renderer->camera.aspectRatio =
+        content_region_avail.x / content_region_avail.y;
+    ImGui::Image(static_cast<ImTextureID>(app->render_target.opq_handle),
+                 content_region_avail);
+    ImGui::PopStyleVar();
+    ImGui::End();
+  }
+
   {
     ImGui::Begin("test");
+    ImGui::ColorPicker4("Clear Color:",
+                        glm::value_ptr(app->renderer->clear_color));
     static float f = 0.0f;
     static int counter = 0;
 
@@ -193,70 +297,103 @@ SDL_AppResult SDL_AppIterate(void *app_state) {
   }
   {
     ImGui::Begin("Camera");
-    ImGui::SliderFloat("FOV: ", &app->renderer->camera.fov, 0.0f, 100.0f);
-    ImGui::SliderFloat("Near plane: ", &app->renderer->camera.nearPlane, 0.0f,
-                       100.0f);
-    ImGui::SliderFloat("Far plane: ", &app->renderer->camera.farPlane, 0.0f,
-                       100.0f);
-    ImGui::SliderFloat3("Target", glm::value_ptr(app->renderer->camera.target),
-                        -100.0f, 100.0f);
-    ImGui::SliderFloat3("Up", glm::value_ptr(app->renderer->camera.up), -100.0f,
-                        100.0f);
-    ImGui::SliderFloat3("Position",
-                        glm::value_ptr(app->renderer->camera.position), -100.0f,
-                        100.0f);
+    ImGui::InputFloat("FOV: ", &app->renderer->camera.fov);
+    ImGui::InputFloat("Near plane: ", &app->renderer->camera.nearPlane);
+    ImGui::InputFloat("Far plane: ", &app->renderer->camera.farPlane);
+    ImGui::InputFloat3("Target", glm::value_ptr(app->renderer->camera.target));
+    ImGui::InputFloat3("Up", glm::value_ptr(app->renderer->camera.up));
+    ImGui::InputFloat3("Position",
+                       glm::value_ptr(app->renderer->camera.position));
     ImGui::Checkbox("Is Orthogonal?", &app->renderer->camera.is_orthogonal);
-    if (ImGui::IsKeyPressed(ImGuiKey_X)) {
-      app->renderer->camera.position =
-          app->renderer->camera.position -
-          glm::normalize(app->renderer->camera.target -
-                         app->renderer->camera.position);
-    } else if (ImGui::IsKeyPressed(ImGuiKey_Z)) {
+    float mouse_cursor = ImGui::GetIO().MouseWheel;
+    if (mouse_cursor != app->prev_mouse_cursor) {
+      float cursor_delta = mouse_cursor - app->prev_mouse_cursor;
       app->renderer->camera.position =
           app->renderer->camera.position +
-          glm::normalize(app->renderer->camera.target -
-                         app->renderer->camera.position);
+          glm::sign(mouse_cursor) *
+              glm::normalize(app->renderer->camera.target -
+                             app->renderer->camera.position);
+      app->prev_mouse_cursor = mouse_cursor;
     }
     if (ImGui::IsMouseDragging(2)) {
-      ImVec2 drag_delta = ImGui::GetMouseDragDelta(2);
-      glm::vec3 forward = glm::normalize(app->renderer->camera.target -
-                                         app->renderer->camera.position);
-      glm::vec3 W = -forward;
-      glm::vec3 U = glm::normalize(glm::cross(app->renderer->camera.up, W));
-      glm::vec3 V = glm::normalize(glm::cross(W, U));
-      float movement_factor = 0.01f;
-      app->renderer->camera.position = app->renderer->camera.position -
-                                       movement_factor * U * drag_delta.x +
-                                       movement_factor * V * drag_delta.y;
-      app->renderer->camera.target = app->renderer->camera.target -
-                                     movement_factor * U * drag_delta.x +
-                                     movement_factor * V * drag_delta.y;
-    }
-    if (ImGui::IsMouseDragging(1)) {
-      ImVec2 drag_delta = ImGui::GetMouseDragDelta(1);
-      glm::vec3 forward = glm::normalize(app->renderer->camera.target -
-                                         app->renderer->camera.position);
-      glm::vec3 W = -forward;
-      glm::vec3 U = glm::normalize(glm::cross(app->renderer->camera.up, W));
-      glm::vec3 V = glm::normalize(glm::cross(W, U));
-      float movement_factor = 0.01f;
-      app->renderer->camera.target = app->renderer->camera.target -
-                                     movement_factor * U * drag_delta.x +
-                                     movement_factor * V * drag_delta.y;
+      ImVec2 mouse_pos = ImGui::GetMousePos();
+      if (!app->isFirstFameDragging) {
+        ImVec2 drag_delta = ImVec2(mouse_pos.x - app->prev_mouse_position.x,
+                                   mouse_pos.y - app->prev_mouse_position.y);
+        if (drag_delta.x != 0.0f or drag_delta.y != 0.0f) {
+          if (ImGui::IsKeyPressed(ImGuiKey_LeftShift)) {
+
+            glm::vec2 scaled_drag_delta = glm::vec2(drag_delta.x, drag_delta.y);
+            glm::vec3 forward = glm::normalize(app->renderer->camera.target -
+                                               app->renderer->camera.position);
+            glm::vec3 W = -forward;
+            glm::vec3 U =
+                glm::normalize(glm::cross(app->renderer->camera.up, W));
+            glm::vec3 V = glm::normalize(glm::cross(W, U));
+            float movement_factor =
+                2 *
+                SDL_tanf((app->renderer->camera.aspectRatio * SDL_PI_F) /
+                         180.0f) *
+                glm::length(app->renderer->camera.position) *
+                (1 / render_width) * 100.0f;
+            app->renderer->camera.position =
+                app->renderer->camera.position -
+                movement_factor * U * scaled_drag_delta.x +
+                movement_factor * V * scaled_drag_delta.y;
+            app->renderer->camera.target =
+                app->renderer->camera.target -
+                movement_factor * U * scaled_drag_delta.x +
+                movement_factor * V * scaled_drag_delta.y;
+            // LOG_INFO("prev mouse %f %f", app->prev_mouse_position.x,
+            //          app->prev_mouse_position.y);
+            // LOG_INFO("target %f %f %f", app->renderer->camera.target.x,
+            //          app->renderer->camera.target.y,
+            //          app->renderer->camera.target.z);
+            // LOG_INFO("position %f %f %f", app->renderer->camera.position.x,
+            //          app->renderer->camera.position.y,
+            //          app->renderer->camera.position.z);
+            // LOG_INFO("drag delta %f %f", drag_delta.x, drag_delta.y);
+            // LOG_INFO("movement_factor %f", movement_factor);
+
+          } else {
+            glm::vec2 scaled_drag_delta =
+                normalize(glm::vec2(drag_delta.x, drag_delta.y));
+            glm::vec3 forward = glm::normalize(app->renderer->camera.target -
+                                               app->renderer->camera.position);
+            glm::vec3 W = -forward;
+            glm::vec3 U =
+                glm::normalize(glm::cross(app->renderer->camera.up, W));
+            glm::vec3 V = glm::normalize(glm::cross(W, U));
+            float movement_factor = 0.045f;
+            app->renderer->camera.target =
+                app->renderer->camera.target -
+                movement_factor * U * scaled_drag_delta.x +
+                movement_factor * V * scaled_drag_delta.y;
+          } //! fix pan for close to zero and fix gimbal lock in rotation
+        }
+      }
+      app->isFirstFameDragging = false;
+      app->prev_mouse_position = glm::vec2(mouse_pos.x, mouse_pos.y);
+
+      // ImVec2 drag_delta = ImGui::GetMouseDragDelta(2);
+      // glm::vec2 norm_drag_delta =
+      //     glm::normalize(glm::vec2(drag_delta.x, drag_delta.y));
+      // glm::vec3 forward = glm::normalize(app->renderer->camera.target -
+      //                                    app->renderer->camera.position);
+      // glm::vec3 W = -forward;
+      // glm::vec3 U = glm::normalize(glm::cross(app->renderer->camera.up, W));
+      // glm::vec3 V = glm::normalize(glm::cross(W, U));
+      // glm::vec3 drag_direction = norm_drag_delta.x * U + norm_drag_delta.y *
+      // V; glm::vec3 axis = glm::normalize(glm::cross(drag_direction, W));
+      // glm::quat rot_quat = glm::angleAxis((1.0f * SDL_PI_F) / 180.0f, axis);
+      // glm::mat4 rot_mat = glm::mat4_cast(rot_quat);
+      // app->renderer->camera.
+    } else {
+      app->isFirstFameDragging = true;
     }
     ImGui::End();
   }
 
-  {
-    ImGui::Begin("render-result");
-    ImGui::PushStyleVar(ImGuiStyleVar_ImageBorderSize, 1.0f);
-    auto content_region_avail = ImGui::GetContentRegionAvail();
-    app->renderer->camera.aspectRatio = content_region_avail.x / content_region_avail.y;
-    ImGui::Image(static_cast<ImTextureID>(app->render_target.opq_handle),
-                 content_region_avail);
-    ImGui::PopStyleVar();
-    ImGui::End();
-  }
   // ImGui::ShowDemoWindow();
   // ImGui::ShowMetricsWindow();
 
