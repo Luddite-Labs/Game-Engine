@@ -25,3 +25,9 @@
 [submodule "external/stb"]
 	path = external/stb
 	url = https://github.com/nothings/stb
+[submodule "external/entt"]
+	path = external/entt
+	url = https://github.com/skypjack/entt
+[submodule "external/soa_vector"]
+	path = external/soa_vector
+	url = https://github.com/Dwarfobserver/soa_vector/

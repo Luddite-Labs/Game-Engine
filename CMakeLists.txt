@@ -15,6 +15,7 @@ set(CMAKE_INSTALL_PREFIX "${CMAKE_BINARY_DIR}" CACHE INTERNAL "")
 # Declare the project
 project(Game-Engine)
 
+
 if (APPLE OR EMSCRIPTEN)
     set(BUILD_SHARED_LIBS OFF CACHE INTERNAL "")    # Disable shared builds on platforms where it does not make sense to use them
 endif()
@@ -44,6 +45,7 @@ target_sources(${EXECUTABLE_NAME}
 target_include_directories( ${EXECUTABLE_NAME}
 	PRIVATE ${CMAKE_SOURCE_DIR}/src/
     PUBLIC ${CMAKE_BINARY_DIR}/
+    PRIVATE external/soa_vector/
     PRIVATE external/imgui/
     PRIVATE external/stb
 )
@@ -53,6 +55,14 @@ target_compile_definitions( ${EXECUTABLE_NAME}
     PRIVATE -DGAME_ENGINE_DEFAULT_DATA_DIR="${GAME_ENGINE_DEFAULT_DATA_DIR}"
 )
 
+include(FetchContent)
+FetchContent_Declare(
+  googletest
+  URL https://github.com/google/googletest/archive/03597a01ee50ed33e9dfd640b249b4be3799d395.zip
+)
+# For Windows: Prevent overriding the parent project's compiler/linker settings
+set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+FetchContent_MakeAvailable(googletest)
 # glm
 target_compile_definitions(${EXECUTABLE_NAME}
     PRIVATE GLM_ENABLE_EXPERIMENTAL
@@ -60,7 +70,7 @@ target_compile_definitions(${EXECUTABLE_NAME}
     PRIVATE GLM_FORCE_RADIANS
 )
 add_subdirectory( external/glm )
-
+add_subdirectory( external/entt )
 add_subdirectory( external/fastgltf )
 
 # What is iosLaunchScreen.storyboard? This file describes what Apple's mobile platforms
@@ -75,7 +85,7 @@ if(APPLE)
     target_sources("${EXECUTABLE_NAME}" PRIVATE "src/logo.png")
 endif()
 
-target_compile_features(${EXECUTABLE_NAME} PUBLIC cxx_std_20)
+target_compile_features(${EXECUTABLE_NAME} PRIVATE cxx_std_20)
 
 # on Web targets, we need CMake to generate a HTML webpage. 
 if(EMSCRIPTEN)
@@ -90,6 +100,7 @@ add_subdirectory(external/SDL EXCLUDE_FROM_ALL)
 set(SDLTTF_VENDORED ON) # tell SDL_ttf to build its own dependencies
 add_subdirectory(external/SDL_ttf EXCLUDE_FROM_ALL)	
 
+set(SPIRV_BUILD_TESTS OFF)
 set(SDLSHADERCROSS_VENDORED ON)
 add_subdirectory(external/SDL_shadercross EXCLUDE_FROM_ALL)	
 
@@ -196,3 +207,24 @@ if(CMAKE_SYSTEM_NAME MATCHES "Darwin")
     set(CPACK_GENERATOR "DragNDrop")
     include(CPack)
 endif()
+
+enable_testing()
+
+file( GLOB_RECURSE TEST_FILES tests/* )
+add_executable(
+  tests
+)
+target_sources(tests 
+    PRIVATE ${TEST_FILES}
+)
+target_include_directories(tests 
+    PRIVATE ${CMAKE_SOURCE_DIR}/src/
+    PUBLIC ${CMAKE_BINARY_DIR}/
+)
+target_link_libraries(
+  tests
+  GTest::gtest_main
+)
+
+include(GoogleTest)
+gtest_discover_tests(tests)
