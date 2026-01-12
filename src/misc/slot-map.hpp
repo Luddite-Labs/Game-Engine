@@ -3,8 +3,8 @@
 #include <cstdint>
 #include <cstdlib>
 #include <functional>
-#include <vector>
 #include <misc/utils.hpp>
+#include <vector>
 
 struct Slot {
   union {
@@ -35,6 +35,7 @@ public:
     index_slot_map.reserve(256);
     is_edited.reserve(256);
   }
+  static bool isValid(const Handle &handle) { return handle.generation != 0; }
 
   Handle insert(const D &val) {
     Handle handle;
@@ -42,7 +43,7 @@ public:
       const uint32_t data_index = data.size();
       const uint32_t slot_index = slots.size();
       slots.push_back(
-          {.data_index = data_index, .generation = 0, .ref_count = 1});
+          {.data_index = data_index, .generation = 1, .ref_count = 1});
       data.push_back(val);
       index_slot_map.push_back(slot_index);
       is_edited.push_back(true);
@@ -67,20 +68,20 @@ public:
   }
   //! ref counting not working correctly
   void erase(Handle &handle) {
-    const uint32_t slot_index = handle.slot_index;
-    slots[slot_index].ref_count -= 1;
-    if (slots[slot_index].ref_count == 0) {
-      const uint32_t data_index = slots[slot_index].data_index;
-      live_node_count -= 1;
-      D temp = data[live_node_count];
-      data[live_node_count] = data[data_index];
-      data[data_index] = temp;
-      slots[slot_index].data_index = live_node_count;
-      std::swap(index_slot_map[live_node_count], index_slot_map[data_index]);
-      bool temp_edited = is_edited[live_node_count];
-      is_edited[live_node_count] = is_edited[data_index];
-      is_edited[data_index] = temp_edited;
-    }
+    // const uint32_t slot_index = handle.slot_index;
+    // slots[slot_index].ref_count -= 1;
+    // if (slots[slot_index].ref_count == 0) {
+    //   const uint32_t data_index = slots[slot_index].data_index;
+    //   live_node_count -= 1;
+    //   D temp = data[live_node_count];
+    //   data[live_node_count] = data[data_index];
+    //   data[data_index] = temp;
+    //   slots[slot_index].data_index = live_node_count;
+    //   std::swap(index_slot_map[live_node_count], index_slot_map[data_index]);
+    //   bool temp_edited = is_edited[live_node_count];
+    //   is_edited[live_node_count] = is_edited[data_index];
+    //   is_edited[data_index] = temp_edited;
+    // }
   }
 
   void ref(Handle handle) { slots[handle.slot_index].ref_count += 1; }
@@ -100,7 +101,9 @@ public:
       }
     }
   }
-  D &get(const Handle &handle) { return data[slots[handle.slot_index].data_index]; }
+  D &get(const Handle &handle) {
+    return data[slots[handle.slot_index].data_index];
+  }
   D &operator[](int index) { return data[index]; }
   uint32_t size() { return live_node_count; }
 

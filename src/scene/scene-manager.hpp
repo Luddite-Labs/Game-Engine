@@ -10,6 +10,7 @@ private:
 
 public:
   std::vector<Scene> scenes;
+  uint32_t active_scene_index; //! add update logic
   static void init() { singleton = new SceneManager(); }
   static void destroy() { delete singleton; }
   static SceneManager *getSingleton() {

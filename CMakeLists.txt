@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.16)
 
 option(GAME_ENGINE_DEBUG_MODE "Enable debug mode" ON)
-set(GAME_ENGINE_DEFAULT_SHADER_DIR "${CMAKE_BINARY_DIR}/../data/shaders")
+set(GAME_ENGINE_DEFAULT_SHADER_DIR "${CMAKE_SOURCE_DIR}/src/renderer/shaders")
 set(GAME_ENGINE_DEFAULT_DATA_DIR "${CMAKE_BINARY_DIR}/../data/")
 
 # set the output directory for built objects.
@@ -124,6 +124,7 @@ target_link_libraries(${EXECUTABLE_NAME} PUBLIC
     SDL3_mixer::SDL3_mixer  # remove if you are not using SDL_mixer
     SDL3_image::SDL3_image
     SDL3_shadercross::SDL3_shadercross
+    EnTT::EnTT
     glm
     fastgltf
 )
