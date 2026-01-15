@@ -3,7 +3,7 @@
 #include "misc/slot-map.hpp"
 #include "renderer/types.hpp"
 
-using SamplerStorageType = SlotMap<std::vector<data::Sampler>, data::Sampler>;
+using SamplerStorageType = SlotMap<std::vector<RE::Sampler::Data>, RE::Sampler::Data, RE::Sampler::Handle>;
 
 namespace SaS {
 
@@ -11,23 +11,25 @@ void init(SDL_GPUDevice *device);
 
 void destroy();
 
-handle::Sampler createSampler(SamplerFilteringModes mag_filter,
-		SamplerFilteringModes min_filter,
-		SamplerAddressingModes u_addressing,
-		SamplerAddressingModes v_addressing);
-void refSampler(handle::Sampler sampler);
-void destroySampler(handle::Sampler sampler);
-SamplerFilteringModes getSamplerMagFilter(handle::Sampler sampler);
-SamplerFilteringModes getSamplerMinFilter(handle::Sampler sampler);
-SamplerAddressingModes getSamplerUAddressing(handle::Sampler sampler);
-SamplerAddressingModes getSamplerVAddressing(handle::Sampler sampler);
-void setSamplerMagFilter(handle::Sampler sampler,
-		SamplerFilteringModes mode);
-void setSamplerMinFilter(handle::Sampler sampler,
-		SamplerFilteringModes mode);
-void setSamplerUAddressing(handle::Sampler sampler,
-		SamplerAddressingModes mode);
-void setSamplerVAddressing(handle::Sampler sampler,
-		SamplerAddressingModes mode);
-SDL_GPUSampler *getSamplerGPUHandle(handle::Sampler sampler);
+RE::Sampler::Handle createSampler(RE::Sampler::FilteringModes mag_filter,
+		RE::Sampler::FilteringModes min_filter,
+		RE::Sampler::AddressingModes u_addressing,
+		RE::Sampler::AddressingModes v_addressing,
+		RE::Sampler::AddressingModes w_addressing);
+void refSampler(RE::Sampler::Handle sampler);
+void destroySampler(RE::Sampler::Handle sampler);
+RE::Sampler::FilteringModes getSamplerMagFilter(RE::Sampler::Handle sampler);
+RE::Sampler::FilteringModes getSamplerMinFilter(RE::Sampler::Handle sampler);
+RE::Sampler::AddressingModes getSamplerUAddressing(RE::Sampler::Handle sampler);
+RE::Sampler::AddressingModes getSamplerVAddressing(RE::Sampler::Handle sampler);
+void setSamplerMagFilter(RE::Sampler::Handle sampler,
+		RE::Sampler::FilteringModes mode);
+void setSamplerMinFilter(RE::Sampler::Handle sampler,
+		RE::Sampler::FilteringModes mode);
+void setSamplerUAddressing(RE::Sampler::Handle sampler,
+		RE::Sampler::AddressingModes mode);
+void setSamplerVAddressing(RE::Sampler::Handle sampler,
+		RE::Sampler::AddressingModes mode);
+SDL_GPUSampler *getSamplerGPUHandle(RE::Sampler::Handle sampler);
+bool isValid(RE::Sampler::Handle sampler);
 }; // namespace SaS

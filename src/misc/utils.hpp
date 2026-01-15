@@ -96,3 +96,4 @@ struct Handle {
 			SDL_ClearError();                                    \
 		}                                                        \
 	}
+	

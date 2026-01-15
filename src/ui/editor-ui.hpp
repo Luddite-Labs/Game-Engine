@@ -1,8 +1,11 @@
 #include "SDL3/SDL_dialog.h"
+#include "SDL3/SDL_events.h"
+#include "SDL3/SDL_keyboard.h"
 #include "SDL3/SDL_video.h"
 #include "entt/entity/fwd.hpp"
 #include "fastgltf/types.hpp"
 #include "glm/fwd.hpp"
+#include "glm/gtc/quaternion.hpp"
 #include "glm/gtc/type_ptr.hpp"
 #include "imgui_internal.h"
 #include "loaders/gltf-loader.hpp"
@@ -13,6 +16,9 @@
 #include "scene/scene.hpp"
 #include <algorithm>
 #include <cstdint>
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/vec3.hpp>
 #include <imgui.h>
 #include <optional>
 #include <queue>
@@ -27,26 +33,34 @@ void loadGLTFCallback(void *userdata, const char *const *filelist, int filter) {
 	load(gltf_path);
 }
 
-void handleEditorCameraMovement(glm::vec3 &eye, glm::vec3 &center, glm::vec3 &up) {
+void handleEditorCameraMovement(Transform &trs, RE::Camera::Shared camera, glm::vec2 content_region) {
 	ImGuiIO &io = ImGui::GetIO();
-	const float camera_speed = 0.05f; // adjust accordingly
-	if (ImGui::IsKeyDown(ImGuiKey_W)) {
-		eye += camera_speed * glm::normalize(center - eye);
-		center += camera_speed * glm::normalize(center - eye);
+
+	glm::vec3 forward = glm::vec3(0.0f, 0.0f, -1.0f);
+	glm::vec3 right = glm::vec3(1.0f, 0.0f, 0.0f);
+	glm::vec3 up = glm::vec3(0.0f, 1.0f, 0.0f);
+
+	// WASD for movement
+	if (io.MouseWheel) {
+		trs.translate += forward * -1.0f * io.MouseWheel; // invert
 	}
-	if (ImGui::IsKeyDown(ImGuiKey_S)) {
-		eye -= camera_speed * glm::normalize(center - eye);
-		center -= camera_speed * glm::normalize(center - eye);
-	}
-	if (ImGui::IsKeyDown(ImGuiKey_A)) {
-		glm::vec3 right = glm::normalize(glm::cross(center - eye, up));
-		eye -= right * camera_speed;
-		center -= right * camera_speed;
-	}
-	if (ImGui::IsKeyDown(ImGuiKey_D)) {
-		glm::vec3 right = glm::normalize(glm::cross(center - eye, up));
-		eye += right * camera_speed;
-		center += right * camera_speed;
+	if (io.MouseDown[ImGuiMouseButton_Middle]) {
+		if (ImGui::IsKeyDown(ImGuiKey_LeftShift)) {
+			//! better solution needed
+			float camera_speed = 5.0f;
+			float delta_x = camera_speed * (io.MouseDelta.x / content_region.x) * RE::Camera::getAspectRatio(camera.handle);
+			float delta_y = camera_speed * (io.MouseDelta.y / content_region.y) * -1; // invert
+			trs.translate += delta_x * right + delta_y * up;
+		}
+		// Middle mouse button for rotation
+		else {
+			float delta_x = io.MouseDelta.x;
+			float delta_y = io.MouseDelta.y * -1; // invert
+			trs.rotate *= glm::angleAxis(glm::radians(delta_x), glm::vec3(0, 1, 0));
+			auto pos_dir = glm::normalize(trs.translate);
+			auto ground_norm = glm::normalize(glm::cross(pos_dir, glm::vec3(0, 1, 0)));
+			trs.rotate *= glm::angleAxis(glm::radians(delta_y), ground_norm);
+		}
 	}
 }
 
@@ -101,24 +115,20 @@ void drawToolBar(SDL_Window *window) {
 	ImGui::End();
 }
 
-void drawRenderResult(const Scene &scene,
-		const interface::Texture &render_target) {
+glm::vec2 drawRenderResult(const Scene &scene,
+		const RE::Texture::Shared &render_target) {
 	ImGui::Begin("render-result");
 	ImGui::PushStyleVar(ImGuiStyleVar_ImageBorderSize, 1.0f);
 	auto content_region_avail = ImGui::GetContentRegionAvail();
-	auto &camera = scene.nodes.get<interface::Camera>(scene.active_camera_node);
-	if (camera.isOrthogonal()) {
-		const_cast<interface::Camera &>(camera).setAspectRatio(
-				content_region_avail.x / content_region_avail.y); //! const correctness
-	}
 	ImGui::Image(
-			static_cast<ImTextureID>(interface::Renderer::getTexture(render_target)),
+			static_cast<ImTextureID>(RE::getTexture(render_target.handle)),
 			content_region_avail);
 	ImGui::PopStyleVar();
 	ImGui::End();
+	return glm::vec2(content_region_avail.x, content_region_avail.y);
 }
 
-void drawRenderOptions(RendererOptions &options) {
+void drawRenderOptions(RE::Options &options) {
 	ImGuiIO &io = ImGui::GetIO();
 	ImGui::Begin("Renderer Options");
 	ImGui::ColorEdit4("Clear Color:",
@@ -131,13 +141,13 @@ void drawRenderOptions(RendererOptions &options) {
 	ImGui::End();
 }
 
-void drawTexturePreview(const interface::Texture &texture,
+void drawTexturePreview(const RE::Texture::Handle &texture,
 		const std::string &texture_name) {
-	auto tex_ref = interface::Renderer::getTexture(texture);
+	auto tex_ref = RE::getTexture(texture);
 	uint32_t preview_width = 50;
 	uint32_t preview_height = 50;
-	ImGui::Text((texture_name + ": %dx%d").c_str(), texture.getWidth(),
-			texture.getHeight());
+	ImGui::Text((texture_name + ": %dx%d").c_str(), RE::Texture::getWidth(texture),
+			RE::Texture::getHeight(texture));
 	ImVec2 pos = ImGui::GetCursorScreenPos();
 	ImVec2 uv_min = ImVec2(0.0f, 0.0f); // Top-left
 	ImVec2 uv_max = ImVec2(1.0f, 1.0f); // Lower-right
@@ -153,13 +163,13 @@ void drawTexturePreview(const interface::Texture &texture,
 		float zoom = 4.0f;
 		if (region_x < 0.0f) {
 			region_x = 0.0f;
-		} else if (region_x > texture.getWidth() - region_sz) {
-			region_x = texture.getWidth() - region_sz;
+		} else if (region_x > RE::Texture::getWidth(texture) - region_sz) {
+			region_x = RE::Texture::getWidth(texture) - region_sz;
 		}
 		if (region_y < 0.0f) {
 			region_y = 0.0f;
-		} else if (region_y > texture.getHeight() - region_sz) {
-			region_y = texture.getHeight() - region_sz;
+		} else if (region_y > RE::Texture::getHeight(texture) - region_sz) {
+			region_y = RE::Texture::getHeight(texture) - region_sz;
 		}
 		ImGui::Text("Min: (%.2f, %.2f)", region_x, region_y);
 		ImGui::Text("Max: (%.2f, %.2f)", region_x + region_sz,
@@ -182,77 +192,74 @@ void drawComponent(Transform &component) {
 	edit |= ImGui::InputFloat3("Scale", glm::value_ptr(component.scale));
 }
 
-void drawComponent(interface::Mesh &component) {
-	ImGui::Text("Vert count: %d Index count: %d", component.getVertCount(),
-			component.getIndexCount());
+void drawComponent(RE::Mesh::Handle &component) {
 }
 
-void drawComponent(interface::Material &component) {
-	float metallic_factor = component.getMetallicFactor();
-	float roughness_factor = component.getRoughnessFactor();
-	float normal_scale = component.getNormalScale();
-	glm::vec4 color_factor = component.getColorFactor();
-	glm::vec3 emissive_factor = component.getEmissiveFactor();
+void drawComponent(RE::Material::Handle &component) {
+	float metallic_factor = RE::Material::getMetallicFactor(component);
+	float roughness_factor = RE::Material::getRoughnessFactor(component);
+	float normal_scale = RE::Material::getNormalScale(component);
+	glm::vec4 color_factor = RE::Material::getColorFactor(component);
+	glm::vec3 emissive_factor = RE::Material::getEmissiveFactor(component);
 	if (ImGui::InputFloat("Metallic Factor", &metallic_factor)) {
-		component.setMetallicFactor(metallic_factor);
+		RE::Material::setMetallicFactor(component, metallic_factor);
 	}
 	if (ImGui::InputFloat("Roughness Factor", &roughness_factor)) {
-		component.setRoughnessFactor(roughness_factor);
+		RE::Material::setRoughnessFactor(component, roughness_factor);
 	}
 	if (ImGui::InputFloat("Normal Scale", &normal_scale)) {
-		component.setMetallicFactor(normal_scale);
+		RE::Material::setMetallicFactor(component, normal_scale);
 	}
 	if (ImGui::InputFloat4("Color Factor", glm::value_ptr(color_factor))) {
-		component.setColorFactor(color_factor);
+		RE::Material::setColorFactor(component, color_factor);
 	}
 	if (ImGui::InputFloat3("Emissive Factor", glm::value_ptr(emissive_factor))) {
-		component.setEmissiveFactor(emissive_factor);
+		RE::Material::setEmissiveFactor(component, emissive_factor);
 	}
-	if (component.getColorTexture().isValid()) {
-		drawTexturePreview(component.getColorTexture(), "Color Texture");
+	if (RE::Texture::isValid(RE::Material::getColorTexture(component))) {
+		drawTexturePreview(RE::Material::getColorTexture(component), "Color Texture");
 	}
-	if (component.getEmissiveTexture().isValid()) {
-		drawTexturePreview(component.getEmissiveTexture(), "Emissive Texture");
+	if (RE::Texture::isValid(RE::Material::getEmissiveTexture(component))) {
+		drawTexturePreview(RE::Material::getEmissiveTexture(component), "Emissive Texture");
 	}
-	if (component.getNormalTexture().isValid()) {
-		drawTexturePreview(component.getNormalTexture(), "Normal Texture");
+	if (RE::Texture::isValid(RE::Material::getNormalTexture(component))) {
+		drawTexturePreview(RE::Material::getNormalTexture(component), "Emissive Texture");
 	}
-	if (component.getOcclusionTexture().isValid()) {
-		drawTexturePreview(component.getOcclusionTexture(), "Occlusion Texture");
+	if (RE::Texture::isValid(RE::Material::getOcclusionTexture(component))) {
+		drawTexturePreview(RE::Material::getOcclusionTexture(component), "Emissive Texture");
 	}
-	if (component.getMetallicRoughness().isValid()) {
-		drawTexturePreview(component.getMetallicRoughness(),
-				"Metallic Roughness Texture");
+	if (RE::Texture::isValid(RE::Material::getMetallicRoughnessTexture(component))) {
+		drawTexturePreview(RE::Material::getMetallicRoughnessTexture(component), "Emissive Texture");
 	}
 }
 
-void drawComponent(interface::Camera &component) {
-	if (component.isOrthogonal()) {
-		float xmag = component.getXMag();
-		float ymag = component.getYMag();
+void drawComponent(RE::Camera::Handle &component) {
+	if (RE::Camera::isOrthogonal(component)) {
+		float xmag = RE::Camera::getXMag(component);
+		float ymag = RE::Camera::getYMag(component);
 		if (ImGui::InputFloat("XMag", &xmag)) {
-			component.setXMag(xmag);
+			RE::Camera::setXMag(component, xmag);
 		}
 		if (ImGui::InputFloat("YMag", &ymag)) {
-			component.setYMag(ymag);
+			RE::Camera::setYMag(component, ymag);
 		}
 	} else {
-		float fov = component.getFOV();
-		float aspect_ratio = component.getAspectRatio();
+		float fov = RE::Camera::getFOV(component);
+		float aspect_ratio = RE::Camera::getAspectRatio(component);
 		if (ImGui::InputFloat("FOV", &fov)) {
-			component.setXMag(fov);
+			RE::Camera::setXMag(component, fov);
 		}
 		if (ImGui::InputFloat("Aspect Ratio", &aspect_ratio)) {
-			component.setYMag(aspect_ratio);
+			RE::Camera::setYMag(component, aspect_ratio);
 		}
 	}
-	float near_plane = component.getNearPlane();
-	float far_plane = component.getFarPlane();
+	float near_plane = RE::Camera::getNearPlane(component);
+	float far_plane = RE::Camera::getFarPlane(component);
 	if (ImGui::InputFloat("Near plane", &near_plane)) {
-		component.setXMag(near_plane);
+		RE::Camera::setXMag(component, near_plane);
 	}
 	if (ImGui::InputFloat("Far plane", &far_plane)) {
-		component.setYMag(far_plane);
+		RE::Camera::setYMag(component, far_plane);
 	}
 }
 
@@ -381,13 +388,13 @@ void drawSceneGraph(SceneManager *scene_manager) {
 				not ImGui::CollapsingHeader("Transform")) {
 			drawComponent(scene.nodes.get<Transform>(active_node));
 		}
-		if (scene.nodes.any_of<interface::Mesh>(active_node) and
+		if (scene.nodes.any_of<RenderableMesh>(active_node) and
 				not ImGui::CollapsingHeader("Mesh")) {
-			drawComponent(scene.nodes.get<interface::Mesh>(active_node));
+			drawComponent(scene.nodes.get<RenderableMesh>(active_node).mesh.handle);
 		}
-		if (scene.nodes.any_of<interface::Camera>(active_node) and
+		if (scene.nodes.any_of<RE::Camera::Shared>(active_node) and
 				not ImGui::CollapsingHeader("Camera")) {
-			drawComponent(scene.nodes.get<interface::Camera>(active_node));
+			drawComponent(scene.nodes.get<RE::Camera::Shared>(active_node).handle);
 		}
 		ImGui::End();
 	}

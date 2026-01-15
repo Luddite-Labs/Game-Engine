@@ -1,5 +1,3 @@
-#pragma once
-
 #include <renderer/storage/sampler-storage.hpp>
 #include <renderer/storage/texture-storage.hpp>
 
@@ -14,13 +12,13 @@ void init(SDL_GPUDevice *device) {
 	m_GPU_device = device;
 }
 void destroy() {}
-handle::Texture createTexture(uint32_t width, uint32_t height,
+RE::Texture::Handle createTexture(uint32_t width, uint32_t height,
 		// TextureType type, ! maybe other texture supports in the future
-		TextureUsageFlags usage_flags,
-		TextureFormat format) {
+		RE::Texture::UsageFlags usage_flags,
+		RE::Texture::Format format) {
 	SDL_assert(m_GPU_device);
 	const SDL_GPUTextureCreateInfo tex_info{
-		.type = static_cast<SDL_GPUTextureType>(TextureType::TEXTURE_2D),
+		.type = static_cast<SDL_GPUTextureType>(RE::Texture::Type::TEXTURE_2D),
 		.format = static_cast<SDL_GPUTextureFormat>(format),
 		.usage = static_cast<SDL_GPUTextureUsageFlags>(usage_flags),
 		.width = width,
@@ -38,50 +36,50 @@ handle::Texture createTexture(uint32_t width, uint32_t height,
 			.format = format,
 	});
 }
-void refTexture(handle::Texture texture) {
+void refTexture(RE::Texture::Handle texture) {
 	texture_storage.ref(texture);
 }
-void destroyTexture(handle::Texture texture) {
+void destroyTexture(RE::Texture::Handle texture) {
 	texture_storage.erase(texture);
 }
-uint32_t getTextureWidth(handle::Texture texture) {
+uint32_t getTextureWidth(RE::Texture::Handle texture) {
 	return texture_storage.get(texture).width;
 }
-uint32_t getTextureHeight(handle::Texture texture) {
+uint32_t getTextureHeight(RE::Texture::Handle texture) {
 	return texture_storage.get(texture).height;
 }
-TextureFormat getTextureFormat(handle::Texture texture) {
+RE::Texture::Format getTextureFormat(RE::Texture::Handle texture) {
 	return texture_storage.get(texture).format;
 }
-uint32_t getTextureUsageFlags(handle::Texture texture) {
+uint32_t getTextureUsageFlags(RE::Texture::Handle texture) {
 	return texture_storage.get(texture).usage_flags;
 }
-handle::Sampler getTextureSampler(handle::Texture texture) {
+RE::Sampler::Handle getTextureSampler(RE::Texture::Handle texture) {
 	return texture_storage.get(texture).sampler;
 }
-void setTextureWidth(handle::Texture texture, uint32_t width) {
+void setTextureWidth(RE::Texture::Handle texture, uint32_t width) {
 	texture_storage.get(texture).width = width;
 	texture_storage.setIsEdited(texture);
 }
-void setTextureHeight(handle::Texture texture, uint32_t height) {
+void setTextureHeight(RE::Texture::Handle texture, uint32_t height) {
 	texture_storage.get(texture).height = height;
 	texture_storage.setIsEdited(texture);
 }
-void setTextureFormat(handle::Texture texture, TextureFormat format) {
+void setTextureFormat(RE::Texture::Handle texture, RE::Texture::Format format) {
 	texture_storage.get(texture).format = format;
 	texture_storage.setIsEdited(texture);
 }
-void setTextureUsageFlags(handle::Texture texture, uint32_t usage_flags) {
+void setTextureUsageFlags(RE::Texture::Handle texture, uint32_t usage_flags) {
 	texture_storage.get(texture).usage_flags = usage_flags;
 	texture_storage.setIsEdited(texture);
 }
-void setTextureSampler(handle::Texture texture, handle::Sampler sampler) {
+void setTextureSampler(RE::Texture::Handle texture, RE::Sampler::Handle sampler) {
 	texture_storage.get(texture).sampler = sampler;
 	SaS::refSampler(sampler);
 	// texture_storage.setIsEdited(texture); //! no change texture state so no
 	// refresh needed?
 }
-void uploadBufferToTexture(handle::Texture texture,
+void uploadBufferToTexture(RE::Texture::Handle texture,
 		std::shared_ptr<uint8_t> buffer, size_t offset,
 		size_t count) {
 	auto &tex = texture_storage.get(texture);
@@ -112,8 +110,11 @@ void uploadBufferToTexture(handle::Texture texture,
 	SDL_SubmitGPUCommandBuffer(copy_cmd_buffer);
 	SDL_ReleaseGPUTransferBuffer(m_GPU_device, transfer_buffer);
 }
-SDL_GPUTexture *getTextureGPUHandle(handle::Texture texture) {
+SDL_GPUTexture *getTextureGPUHandle(RE::Texture::Handle texture) {
 	SDL_assert(TextureStorageType::isValid(texture));
 	return texture_storage.get(texture).gpu_handle;
+}
+bool isValid(RE::Texture::Handle texture){
+	return TextureStorageType::isValid(texture);
 }
 }; // namespace TS

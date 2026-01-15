@@ -33,24 +33,28 @@
 #include <glm/vec3.hpp>
 #include <ui/editor-ui.hpp>
 
+glm::mat4x4 getTransformMatFromTRS(const Transform &trs) {
+	return glm::translate(glm::mat4(1.0f), trs.translate) *
+			glm::mat4_cast(trs.rotate) *
+			glm::scale(glm::mat4(1.0f), trs.scale);
+}
+
 void traverseRootNode(Scene &scene, entt::entity node,
 		const glm::mat4 &parent_transform,
-		std::vector<interface::DrawCommand> &draw_commands) {
+		std::vector<RE::DrawCommand> &draw_commands) {
 	if (scene.nodes.all_of<Disabled>(node)) {
 		return;
 	}
 	glm::mat4 local_transform = glm::mat4(1.0f);
 	if (scene.nodes.all_of<Transform>(node)) {
 		const auto &trs = scene.nodes.get<Transform>(node);
-		local_transform = glm::translate(glm::mat4(1.0f), trs.translate) *
-				glm::mat4_cast(trs.rotate) *
-				glm::scale(glm::mat4(1.0f), trs.scale);
+		local_transform = getTransformMatFromTRS(trs);
 	}
 	glm::mat4 global_transform = parent_transform * local_transform;
 
 	if (scene.nodes.all_of<RenderableMesh>(node)) {
 		auto &renderable = scene.nodes.get<RenderableMesh>(node);
-		draw_commands.emplace_back(renderable.mesh, global_transform);
+		draw_commands.emplace_back(global_transform, renderable.mesh.handle);
 	}
 
 	if (scene.nodes.all_of<fastgltf::MaybeSmallVector<Child>>(node)) {
@@ -62,18 +66,12 @@ void traverseRootNode(Scene &scene, entt::entity node,
 }
 
 struct AppContext {
-	interface::Texture *render_target;
-	SDL_Window *window;
-	AudioEngine *audio_engine;
-	PhysicsEngine *physics_engine;
-	RendererOptions renderer_options;
-	glm::vec3 eye;
-	glm::vec3 center;
-	glm::vec3 up;
+	RE::Texture::Shared render_target;
+	RE::Options renderer_options;
+	RE::Camera::Shared scene_camera;
+	Transform camera_transform;
 	SDL_AppResult app_status = SDL_APP_CONTINUE;
-	bool isFirstFameDragging = true;
-	glm::vec2 prev_mouse_position;
-	float prev_mouse_cursor;
+	SDL_Window *window;
 };
 
 SDL_AppResult SDL_Fail() {
@@ -109,38 +107,44 @@ SDL_AppResult SDL_AppInit(void **app_state, int argc, char *argv[]) {
 		}
 	}
 
-	interface::Renderer::init();
+	RE::init();
 	UI::init(window);
 	SceneManager::init();
 	AudioEngine *audio_engine = new AudioEngine();
 	PhysicsEngine *physics_engine = new PhysicsEngine();
 
-	// set up the application data
-	*app_state = new AppContext{
-		.render_target = new interface::Texture(1920, 1080,
-				TextureUsageFlags::COLOR_TARGET |
-						TextureUsageFlags::SAMPLER),
-		.window = window,
-		.audio_engine = audio_engine,
-		.physics_engine = physics_engine,
-		.renderer_options =
-				RendererOptions{ .clear_color = glm::vec4(0.1f, 0.1f, 0.1f, 1.0f) },
-		.eye = { 5.0, 0.0, 5.0 },
-		.center = { 0.0, 0.0, 0.0 },
-		.up = { 0.0, 1.0, 0.0 }
-	};
+	RE::Camera::Shared scene_camera = RE::Camera::create();
+	RE::Camera::setAspectRatio(scene_camera.handle, 1.77);
+	RE::Camera::setFOV(scene_camera.handle, glm::radians(75.0f));
+	RE::Camera::setNearPlane(scene_camera.handle, 1.0f);
+	RE::Camera::setFarPlane(scene_camera.handle, 100.0f);
 
+	*app_state = new AppContext{
+		.render_target = RE::Texture::create(1920, 1080,
+				RE::Texture::UsageFlags::COLOR_TARGET |
+						RE::Texture::UsageFlags::SAMPLER),
+		.renderer_options =
+				RE::Options{ .clear_color = glm::vec4(0.1f, 0.1f, 0.1f, 1.0f) },
+		.scene_camera = scene_camera,
+		.window = window,
+	};
+	auto test = glm::lookAt(glm::vec3{ 0, 0, 0 }, { 5, 5, 5 }, { 0, 1, 0 });
+	auto &camera_transform = static_cast<AppContext *>(*app_state)->camera_transform;
+	camera_transform.translate = { 10, 10, 10 };
+	auto dir = glm::normalize(camera_transform.translate);
+	camera_transform.rotate = { 1, 0, 0, 0 };
+	//glm::quatLookAt(dir, glm::vec3{ 0, 1, 0 });
+	camera_transform.scale = glm::vec3{ 1, 1, 1 };
 	// load(GAME_ENGINE_DEFAULT_DATA_DIR "scenes/glTF-Sample-Models/2.0/Box/glTF/Box.gltf");
-	// // load(GAME_ENGINE_DEFAULT_DATA_DIR "scenes/glTF-Sample-Models/2.0/Sponza/glTF/Sponza.gltf");
+	// load(GAME_ENGINE_DEFAULT_DATA_DIR "scenes/glTF-Sample-Models/2.0/Sponza/glTF/Sponza.gltf");
 	// load(GAME_ENGINE_DEFAULT_DATA_DIR "scenes/glTF-Sample-Models/2.0/CesiumMilkTruck/glTF/CesiumMilkTruck.gltf");
 	// load(GAME_ENGINE_DEFAULT_DATA_DIR "scenes/glTF-Sample-Models/2.0/Cube/glTF/Cube.gltf");
 	// load(GAME_ENGINE_DEFAULT_DATA_DIR "scenes/glTF-Sample-Models/2.0/BoxVertexColors/glTF/BoxVertexColors.gltf");
 	// load(GAME_ENGINE_DEFAULT_DATA_DIR "scenes/glTF-Sample-Models/2.0/BoxTextured/glTF/BoxTextured.gltf");
 	// load(GAME_ENGINE_DEFAULT_DATA_DIR "scenes/glTF-Sample-Models/2.0/BoxTexturedNonPowerOfTwo/glTF/BoxTexturedNonPowerOfTwo.gltf");
+	load(GAME_ENGINE_DEFAULT_DATA_DIR "scenes/orient/scene.gltf");
 	LOG_INFO("Application started successfully!");
 
-	reinterpret_cast<AppContext *>(app_state)->prev_mouse_cursor =
-			ImGui::GetIO().MouseWheel;
 	return SDL_APP_CONTINUE;
 }
 
@@ -166,20 +170,22 @@ SDL_AppResult SDL_AppIterate(void *app_state) {
 
 	UI::getSingleton()->beginFrame();
 	drawToolBar(app->window);
+	glm::vec2 content_region;
 	if (0 <= scene_manager->active_scene_index &&
 			scene_manager->active_scene_index < scene_manager->scenes.size()) {
 		auto &scene = scene_manager->scenes[scene_manager->active_scene_index];
-		std::vector<interface::DrawCommand> draw_commands;
+		std::vector<RE::DrawCommand> draw_commands;
 		const auto root_node_view = scene.nodes.view<entt::entity>(entt::exclude<Parent>);
 		for (const auto &node : root_node_view) {
 			traverseRootNode(scene, node, glm::mat4(1.0f), draw_commands);
 		}
-		interface::Renderer::draw(app->renderer_options, *app->render_target,
-				scene.nodes.get<interface::Camera>(scene.active_camera_node),
-				glm::lookAt(app->eye, app->center, app->up), draw_commands);
-		drawRenderResult(scene, *app->render_target);
+		RE::drawToTexture(app->renderer_options, app->render_target.handle,
+				app->scene_camera.handle,
+				getTransformMatFromTRS(app->camera_transform), draw_commands);
+		content_region = drawRenderResult(scene, app->render_target.handle);
+		RE::Camera::setAspectRatio(app->scene_camera.handle, content_region.x / content_region.y);
 	}
-	handleEditorCameraMovement(app->eye, app->center, app->up);	
+	handleEditorCameraMovement(app->camera_transform, app->scene_camera, content_region);
 	drawRenderOptions(app->renderer_options);
 	drawSceneGraph(scene_manager);
 	UI::getSingleton()->endFrame(app->window);
@@ -190,12 +196,10 @@ void SDL_AppQuit(void *app_state, SDL_AppResult result) {
 	auto *app = reinterpret_cast<AppContext *>(app_state);
 
 	if (app) {
-		delete app->render_target;
+		app->render_target.reset();
 		SceneManager::destroy();
 		UI::destroy();
-		interface::Renderer::destroy();
-		delete app->audio_engine;
-		delete app->physics_engine;
+		RE::destroy();
 		SDL_DestroyWindow(app->window);
 		delete app;
 	}

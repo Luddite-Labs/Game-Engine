@@ -30,5 +30,5 @@ struct Child {
 };
 
 struct RenderableMesh {
-	interface::Mesh mesh;
+	RE::Mesh::Shared mesh;
 };

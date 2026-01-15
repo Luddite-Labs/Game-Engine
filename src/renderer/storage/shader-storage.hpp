@@ -1,5 +1,3 @@
-#pragma once
-
 #include <string>
 
 #include <SDL3/SDL_assert.h>
@@ -10,23 +8,24 @@
 #include <misc/slot-map.hpp>
 #include <renderer/types.hpp>
 
-using ShaderStorageType = SlotMap<std::vector<data::Shader>, data::Shader>;
+using ShaderStorageType = SlotMap<std::vector<RE::Shader::Data>, RE::Shader::Data, RE::Shader::Handle>;
 
 // Shader Storage
 namespace ShS {
 void init(SDL_GPUDevice *device);
 void destroy();
 
-handle::Shader
+RE::Shader::Handle
 createShader(const std::string &shader_file,
-		const std::vector<data::ShaderDefinition> &defines);
-void refShader(handle::Shader shader);
-void destroyShader(handle::Shader shader);
-ShaderType getShaderType(handle::Shader shader);
-// const char *getShaderFilePath(handle::Shader shader);
-uint32_t getShaderNumSamplers(handle::Shader shader);
-uint32_t getShaderNumStorageTextures(handle::Shader shader);
-uint32_t getShaderNumStorageBuffers(handle::Shader shader);
-uint32_t getShaderNumUniformBuffers(handle::Shader shader);
-SDL_GPUShader* getShaderGPUHandle(handle::Shader shader);
+		const std::vector<RE::Shader::Definition> &defines);
+void refShader(RE::Shader::Handle shader);
+void destroyShader(RE::Shader::Handle shader);
+RE::Shader::Type getShaderType(RE::Shader::Handle shader);
+// const char *getShaderFilePath(RE::Shader::Handle shader);
+uint32_t getShaderNumSamplers(RE::Shader::Handle shader);
+uint32_t getShaderNumStorageTextures(RE::Shader::Handle shader);
+uint32_t getShaderNumStorageBuffers(RE::Shader::Handle shader);
+uint32_t getShaderNumUniformBuffers(RE::Shader::Handle shader);
+SDL_GPUShader* getShaderGPUHandle(RE::Shader::Handle shader);
+bool isValid(RE::Shader::Handle camera);
 }; // namespace ShS

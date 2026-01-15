@@ -37,55 +37,55 @@ struct Image {
 	uint8_t channels;
 };
 
-[[nodiscard]] std::vector<interface::Sampler>
+[[nodiscard]] std::vector<RE::Sampler::Shared>
 loadSamplers(const fastgltf::Asset &asset) {
-	std::vector<interface::Sampler> samplers;
+	std::vector<RE::Sampler::Shared> samplers;
 	for (const auto &asset_sampler : asset.samplers) {
-		interface::Sampler sampler{};
+		RE::Sampler::Shared sampler = RE::Sampler::create();
 		if (asset_sampler.magFilter.has_value()) {
 			switch (asset_sampler.magFilter.value()) {
 				case fastgltf::Filter::Nearest:
-					sampler.setMagFilter(SamplerFilteringModes::NEAREST);
+					RE::Sampler::setMagFilter(sampler.handle, RE::Sampler::FilteringModes::NEAREST);
 					break;
 				case fastgltf::Filter::Linear:
-					sampler.setMagFilter(SamplerFilteringModes::LINEAR);
+					RE::Sampler::setMagFilter(sampler.handle, RE::Sampler::FilteringModes::LINEAR);
 					break;
 				default: //! implement all filtering modes
-					sampler.setMagFilter(SamplerFilteringModes::NEAREST);
+					RE::Sampler::setMagFilter(sampler.handle, RE::Sampler::FilteringModes::NEAREST);
 			}
 		}
 		if (asset_sampler.minFilter.has_value()) {
 			switch (asset_sampler.minFilter.value()) {
 				case fastgltf::Filter::Nearest:
-					sampler.setMinFilter(SamplerFilteringModes::NEAREST);
+					RE::Sampler::setMinFilter(sampler.handle, RE::Sampler::FilteringModes::NEAREST);
 					break;
 				case fastgltf::Filter::Linear:
-					sampler.setMinFilter(SamplerFilteringModes::LINEAR);
+					RE::Sampler::setMinFilter(sampler.handle, RE::Sampler::FilteringModes::LINEAR);
 					break;
 				default: //! implement all filtering modes
-					sampler.setMinFilter(SamplerFilteringModes::NEAREST);
+					RE::Sampler::setMinFilter(sampler.handle, RE::Sampler::FilteringModes::NEAREST);
 			}
 		}
 		switch (asset_sampler.wrapT) {
 			case fastgltf::Wrap::Repeat:
-				sampler.setUAddressing(SamplerAddressingModes::REPEAT);
+				RE::Sampler::setUAddressing(sampler.handle, RE::Sampler::AddressingModes::REPEAT);
 				break;
 			case fastgltf::Wrap::ClampToEdge:
-				sampler.setUAddressing(SamplerAddressingModes::CLAMP_TO_EDGE);
+				RE::Sampler::setUAddressing(sampler.handle, RE::Sampler::AddressingModes::CLAMP_TO_EDGE);
 				break;
 			case fastgltf::Wrap::MirroredRepeat:
-				sampler.setUAddressing(SamplerAddressingModes::MIRRORED_REPEAT);
+				RE::Sampler::setUAddressing(sampler.handle, RE::Sampler::AddressingModes::MIRRORED_REPEAT);
 				break;
 		}
 		switch (asset_sampler.wrapS) {
 			case fastgltf::Wrap::Repeat:
-				sampler.setVAddressing(SamplerAddressingModes::REPEAT);
+				RE::Sampler::setVAddressing(sampler.handle, RE::Sampler::AddressingModes::REPEAT);
 				break;
 			case fastgltf::Wrap::ClampToEdge:
-				sampler.setVAddressing(SamplerAddressingModes::CLAMP_TO_EDGE);
+				RE::Sampler::setVAddressing(sampler.handle, RE::Sampler::AddressingModes::CLAMP_TO_EDGE);
 				break;
 			case fastgltf::Wrap::MirroredRepeat:
-				sampler.setVAddressing(SamplerAddressingModes::MIRRORED_REPEAT);
+				RE::Sampler::setVAddressing(sampler.handle, RE::Sampler::AddressingModes::MIRRORED_REPEAT);
 				break;
 		}
 		samplers.push_back(sampler);
@@ -166,97 +166,103 @@ loadSamplers(const fastgltf::Asset &asset) {
 	return std::move(images);
 }
 
-[[nodiscard]] std::vector<interface::Texture>
+[[nodiscard]] std::vector<RE::Texture::Shared>
 loadTextures(const fastgltf::Asset &asset,
-		const std::vector<interface::Sampler> &samplers,
+		const std::vector<RE::Sampler::Shared> &samplers,
 		const std::vector<Image> &images) {
-	std::vector<interface::Texture> textures;
-	//! use the right format for texture 
+	std::vector<RE::Texture::Shared> textures;
+	//! use the right format for texture
 	for (auto &asset_texture : asset.textures) {
 		const auto &image = images[asset_texture.imageIndex.value()];
-		interface::Texture texture{ image.width, image.height };
-		texture.uploadBuffer(image.buffer, 0,
+		RE::Texture::Shared texture = RE::Texture::create(image.width, image.height);
+		RE::Texture::uploadBuffer(
+				texture.handle, image.buffer, 0,
 				static_cast<size_t>(image.width) *
 						static_cast<size_t>(image.height) *
 						static_cast<size_t>(image.channels));
 		if (asset_texture.samplerIndex.has_value()) {
 			const auto &sampler = samplers[asset_texture.samplerIndex.value()];
-			texture.setSampler(sampler);
+			RE::Texture::setSampler(texture.handle, sampler.handle);
 		}
 		textures.push_back(texture);
 	}
 	return std::move(textures);
 }
 
-[[nodiscard]] std::vector<interface::Material>
+[[nodiscard]] std::vector<RE::Material::Shared>
 loadMaterials(const fastgltf::Asset &asset,
-		const std::vector<interface::Texture> &textures) {
-	std::vector<interface::Material> materials;
+		const std::vector<RE::Texture::Shared> &textures) {
+	std::vector<RE::Material::Shared> materials;
 	for (const auto &asset_material : asset.materials) {
-		interface::Material material;
-		material.setColorFactor(
+		RE::Material::Shared material = RE::Material::create();
+		RE::Material::setColorFactor(material.handle,
 				glm::make_vec4(asset_material.pbrData.baseColorFactor.data()));
-		material.setEmissiveFactor(
+		RE::Material::setEmissiveFactor(material.handle,
 				glm::make_vec4(asset_material.emissiveFactor.data()));
-		material.setMetallicFactor(asset_material.pbrData.metallicFactor);
-		material.setRoughnessFactor(asset_material.pbrData.roughnessFactor);
+		RE::Material::setMetallicFactor(material.handle, asset_material.pbrData.metallicFactor);
+		RE::Material::setRoughnessFactor(material.handle, asset_material.pbrData.roughnessFactor);
 		if (asset_material.pbrData.baseColorTexture.has_value()) {
-			material.setColorTexture(
+			RE::Material::setColorTexture(material.handle,
 					textures[asset_material.pbrData.baseColorTexture
-									->textureIndex]); // tex coord index transform
+									 ->textureIndex]
+							.handle); // tex coord index transform
 		}
 		if (asset_material.normalTexture.has_value()) {
-			material.setNormalTexture(
+			RE::Material::setNormalTexture(material.handle,
 					textures[asset_material.normalTexture
-									->textureIndex]); // tex coord index transform
+									 ->textureIndex]
+							.handle); // tex coord index transform
 		}
 		if (asset_material.emissiveTexture.has_value()) {
-			material.setEmissiveTexture(
+			RE::Material::setEmissiveTexture(material.handle,
 					textures[asset_material.emissiveTexture
-									->textureIndex]); // tex coord index transform
+									 ->textureIndex]
+							.handle); // tex coord index transform
 		}
 		if (asset_material.occlusionTexture.has_value()) {
-			material.setOcclusionTexture(
+			RE::Material::setOcclusionTexture(material.handle,
 					textures[asset_material.occlusionTexture
-									->textureIndex]); // tex coord index transform
+									 ->textureIndex]
+							.handle); // tex coord index transform
 		}
 		if (asset_material.pbrData.metallicRoughnessTexture.has_value()) {
-			material.setMetallicRoughnessTexture(
+			RE::Material::setMetallicRoughnessTexture(material.handle,
 					textures[asset_material.pbrData.metallicRoughnessTexture
-									->textureIndex]); // tex coord index transform
+									 ->textureIndex]
+							.handle); // tex coord index transform
 		}
 		materials.push_back(material);
 	}
 	return std::move(materials);
 }
 
-[[nodiscard]] std::vector<interface::Mesh>
-loadMeshes(const fastgltf::Asset &asset, const std::vector<interface::Material> &materials) {
-	std::vector<interface::Mesh> meshes;
+[[nodiscard]] std::vector<RE::Mesh::Shared>
+loadMeshes(const fastgltf::Asset &asset, const std::vector<RE::Material::Shared> &materials) {
+	std::vector<RE::Mesh::Shared> meshes;
 	for (const auto &asset_mesh : asset.meshes) {
-		interface::MeshData mesh_data;
+		RE::Mesh::Arg mesh_data;
 		for (auto &&primitive : asset_mesh.primitives) {
 			if (primitive.type != fastgltf::PrimitiveType::Triangles) {
 				continue;
 			}
 			mesh_data.primitives.emplace_back();
 			auto &prim_data = mesh_data.primitives.back();
-			prim_data.type = data::PrimitiveType::TRIANGLELIST;
+			prim_data.type = RE::Mesh::Primitive::Type::TRIANGLELIST;
 			if (primitive.materialIndex.has_value()) {
-				prim_data.material = materials[primitive.materialIndex.value()];
+				prim_data.material = materials[primitive.materialIndex.value()].handle;
 			}
 			// load indexes
 			{
 				const fastgltf::Accessor &indexaccessor =
 						asset.accessors[primitive.indicesAccessor.value()];
-				prim_data.attrs_data[static_cast<uint32_t>(data::VertAttributeIndex::INDEX)] =
+				prim_data.attrs_data[static_cast<uint32_t>(RE::Vertex::AttributeIndex::INDEX)] =
 						std::make_unique<uint8_t[]>(indexaccessor.count * sizeof(uint16_t));
 				prim_data.index_count = indexaccessor.count;
 				uint16_t arr_idx = 0;
 				fastgltf::iterateAccessor<uint32_t>(
 						asset, indexaccessor, [&](uint32_t idx) {
 							uint16_t cast_idx = static_cast<uint16_t>(idx);
-							memcpy(prim_data.attrs_data[static_cast<uint32_t>(data::VertAttributeIndex::INDEX)].get() + (arr_idx * sizeof(uint16_t)), &cast_idx, sizeof(uint16_t));
+							memcpy(prim_data.attrs_data[static_cast<uint32_t>(RE::Vertex::AttributeIndex::INDEX)].get() + (arr_idx * sizeof(uint16_t)), &cast_idx, sizeof(uint16_t));
 							arr_idx++;
 						});
 			}
@@ -265,12 +271,18 @@ loadMeshes(const fastgltf::Asset &asset, const std::vector<interface::Material> 
 			{
 				const fastgltf::Accessor &posAccessor =
 						asset.accessors[primitive.findAttribute("POSITION")->accessorIndex];
-				prim_data.attrs_data[static_cast<uint32_t>(data::VertAttributeIndex::POSITION)] =
+				prim_data.attrs_data[static_cast<uint32_t>(RE::Vertex::AttributeIndex::POSITION)] =
 						std::make_unique<uint8_t[]>(posAccessor.count * sizeof(glm::vec3));
 				prim_data.vert_count = posAccessor.count;
 				fastgltf::iterateAccessorWithIndex<glm::vec3>(
-						asset, posAccessor, [&](glm::vec3 v, size_t index) {
-							memcpy(prim_data.attrs_data[static_cast<uint32_t>(data::VertAttributeIndex::POSITION)].get() + (index * sizeof(glm::vec3)), glm::value_ptr(v), sizeof(glm::vec3));
+						asset, posAccessor, [&](glm::vec3 v, size_t index) { //! maybe add epsilon to box size 
+							mesh_data.aabb.min.x = std::min(v.x, mesh_data.aabb.min.x);
+							mesh_data.aabb.min.y = std::min(v.y, mesh_data.aabb.min.y);
+							mesh_data.aabb.min.z = std::min(v.z, mesh_data.aabb.min.z);
+							mesh_data.aabb.max.x = std::max(v.x, mesh_data.aabb.max.x);
+							mesh_data.aabb.max.y = std::max(v.y, mesh_data.aabb.max.y);
+							mesh_data.aabb.max.z = std::max(v.z, mesh_data.aabb.max.z);
+							memcpy(prim_data.attrs_data[static_cast<uint32_t>(RE::Vertex::AttributeIndex::POSITION)].get() + (index * sizeof(glm::vec3)), glm::value_ptr(v), sizeof(glm::vec3));
 						});
 			}
 
@@ -280,12 +292,12 @@ loadMeshes(const fastgltf::Asset &asset, const std::vector<interface::Material> 
 				if (at_it != primitive.attributes.end()) {
 					const fastgltf::Accessor &uvAccessor =
 							asset.accessors[at_it->accessorIndex];
-					prim_data.attrs_data[static_cast<uint32_t>(data::VertAttributeIndex::UV)] =
+					prim_data.attrs_data[static_cast<uint32_t>(RE::Vertex::AttributeIndex::UV)] =
 							std::make_unique<uint8_t[]>(uvAccessor.count * sizeof(glm::vec2));
 					fastgltf::iterateAccessorWithIndex<glm::vec2>(
 							asset, uvAccessor, [&](glm::vec2 v, size_t index) {
 								glm::vec2 pv = v;
-								memcpy(prim_data.attrs_data[static_cast<uint32_t>(data::VertAttributeIndex::UV)].get() + (index * sizeof(glm::vec2)), glm::value_ptr(pv), sizeof(glm::vec2));
+								memcpy(prim_data.attrs_data[static_cast<uint32_t>(RE::Vertex::AttributeIndex::UV)].get() + (index * sizeof(glm::vec2)), glm::value_ptr(pv), sizeof(glm::vec2));
 							});
 				}
 			}
@@ -295,46 +307,47 @@ loadMeshes(const fastgltf::Asset &asset, const std::vector<interface::Material> 
 			if (normals != primitive.attributes.end()) {
 				const fastgltf::Accessor &normalAccessor =
 						asset.accessors[normals->accessorIndex];
-				prim_data.attrs_data[static_cast<uint32_t>(data::VertAttributeIndex::NORMAL)] =
+				prim_data.attrs_data[static_cast<uint32_t>(RE::Vertex::AttributeIndex::NORMAL)] =
 						std::make_unique<uint8_t[]>(normalAccessor.count * sizeof(glm::vec3));
 				fastgltf::iterateAccessorWithIndex<glm::vec3>(
 						asset, asset.accessors[(*normals).accessorIndex],
 						[&](glm::vec3 v, size_t index) {
-							memcpy(prim_data.attrs_data[static_cast<uint32_t>(data::VertAttributeIndex::NORMAL)].get() + (index * sizeof(glm::vec3)), glm::value_ptr(v), sizeof(glm::vec3));
+							memcpy(prim_data.attrs_data[static_cast<uint32_t>(RE::Vertex::AttributeIndex::NORMAL)].get() + (index * sizeof(glm::vec3)), glm::value_ptr(v), sizeof(glm::vec3));
 						});
 			}
 		}
-		meshes.emplace_back(mesh_data);
+		RE::Mesh::Shared mesh = RE::Mesh::create(mesh_data);
+		meshes.emplace_back(mesh);
 	}
 	return std::move(meshes);
 }
 
-[[nodiscard]] std::vector<interface::Camera>
+[[nodiscard]] std::vector<RE::Camera::Shared>
 loadCameras(const fastgltf::Asset &asset) {
-	std::vector<interface::Camera> cameras;
+	std::vector<RE::Camera::Shared> cameras;
 	for (auto &camera : asset.cameras) {
 		if (std::holds_alternative<fastgltf::Camera::Perspective>(camera.camera)) {
 			auto &camera_data =
 					std::get<fastgltf::Camera::Perspective>(camera.camera);
-			interface::Camera persp_camera;
+			RE::Camera::Shared persp_camera = RE::Camera::create();
 			if (camera_data.aspectRatio.has_value()) {
-				persp_camera.setAspectRatio(camera_data.aspectRatio.value());
+				RE::Camera::setAspectRatio(persp_camera.handle, camera_data.aspectRatio.value());
 			}
-			persp_camera.setFOV(camera_data.yfov);
-			persp_camera.setNearPlane(camera_data.znear);
-			persp_camera.setFarPlane(100.0f);
+			RE::Camera::setFOV(persp_camera.handle, camera_data.yfov);
+			RE::Camera::setNearPlane(persp_camera.handle, camera_data.znear);
+			RE::Camera::setFarPlane(persp_camera.handle, 100.0f);
 			if (camera_data.zfar.has_value()) {
-				persp_camera.setFarPlane(camera_data.zfar.value());
+				RE::Camera::setFarPlane(persp_camera.handle, camera_data.zfar.value());
 			}
 			cameras.push_back(persp_camera);
 		} else {
 			auto &camera_data =
 					std::get<fastgltf::Camera::Orthographic>(camera.camera);
-			interface::Camera ortho_camera;
-			ortho_camera.setXMag(camera_data.xmag);
-			ortho_camera.setYMag(camera_data.ymag);
-			ortho_camera.setNearPlane(camera_data.znear);
-			ortho_camera.setFarPlane(camera_data.zfar);
+			RE::Camera::Shared ortho_camera = RE::Camera::create();
+			RE::Camera::setXMag(ortho_camera.handle, camera_data.xmag);
+			RE::Camera::setYMag(ortho_camera.handle, camera_data.ymag);
+			RE::Camera::setNearPlane(ortho_camera.handle, camera_data.znear);
+			RE::Camera::setFarPlane(ortho_camera.handle, camera_data.zfar);
 			cameras.push_back(ortho_camera);
 		}
 		return std::move(cameras);
@@ -354,14 +367,14 @@ void load(std::string file_path) {
 					fastgltf::Options::LoadExternalBuffers |
 					fastgltf::Options::DecomposeNodeMatrices);
 
-	std::vector<interface::Sampler> samplers = loadSamplers(asset.get());
+	std::vector<RE::Sampler::Shared> samplers = loadSamplers(asset.get());
 	std::vector<Image> images = loadImages(asset.get(), gltf_path);
-	std::vector<interface::Texture> textures =
+	std::vector<RE::Texture::Shared> textures =
 			loadTextures(asset.get(), samplers, images);
-	std::vector<interface::Material> materials =
+	std::vector<RE::Material::Shared> materials =
 			loadMaterials(asset.get(), textures);
-	std::vector<interface::Mesh> meshes = loadMeshes(asset.get(), materials);
-	std::vector<interface::Camera> cameras = loadCameras(asset.get());
+	std::vector<RE::Mesh::Shared> meshes = loadMeshes(asset.get(), materials);
+	std::vector<RE::Camera::Shared> cameras = loadCameras(asset.get());
 
 	for (const auto &asset_scene : asset->scenes) {
 		scene_manager->scenes.emplace_back();
@@ -394,7 +407,7 @@ void load(std::string file_path) {
 						node, meshes[asset_node.meshIndex.value()]);
 			}
 			if (asset_node.cameraIndex.has_value()) {
-				scene.nodes.emplace<interface::Camera>(
+				scene.nodes.emplace<RE::Camera::Shared>(
 						node, cameras[asset_node.cameraIndex.value()]);
 			}
 			if (std::holds_alternative<fastgltf::math::fmat<4, 4>>(
@@ -423,11 +436,14 @@ void load(std::string file_path) {
 		if (not asset_scene.name.empty()) {
 			scene.name = asset_scene.name;
 		}
-		if (scene.nodes.view<interface::Camera>().size() == 0) {
+		if (scene.nodes.view<RE::Camera::Shared>().size() == 0) {
 			auto node = scene.nodes.create();
-			interface::Camera camera;
-			camera.setDefaultPerspective();
-			scene.nodes.emplace<interface::Camera>(node, camera);
+			RE::Camera::Shared camera = RE::Camera::create();
+			RE::Camera::setAspectRatio(camera.handle, 1.77);
+			RE::Camera::setFOV(camera.handle, glm::radians(75.0f));
+			RE::Camera::setNearPlane(camera.handle, 1.0f);
+			RE::Camera::setFarPlane(camera.handle, 100.0f);
+			scene.nodes.emplace<RE::Camera::Shared>(node, camera);
 			scene.nodes.emplace<Tag>(node, "Default Camera");
 			scene.active_camera_node = node;
 		}

@@ -39,25 +39,25 @@ struct TransformMatrices {
 
 struct PrimitiveRenderInfo {
 	glm::mat4x4 transform;
-	const data::Primitive *data;
-	handle::Pipeline pipeline;
-	handle::Material material;
+	const RE::Mesh::Primitive::Data *data;
+	RE::Pipeline::Handle pipeline;
+	RE::Material::Handle material;
 };
 
 struct RendererData {
-	handle::Texture dummy_texture;
-	handle::Texture depth_texture;
-	handle::Sampler dummy_sampler;
+	RE::Texture::Handle dummy_texture;
+	RE::Texture::Handle depth_texture;
+	RE::Sampler::Handle dummy_sampler;
 };
 
 SDL_Window *m_window = nullptr;
 SDL_GPUDevice *m_GPU_device = nullptr;
 SDL_GPUGraphicsPipeline *m_mesh_pipeline = nullptr;
-handle::Shader m_default_vert_shader = { 0, 0 };
-handle::Shader m_default_frag_shader = { 0, 0 };
+RE::Shader::Handle m_default_vert_shader = { 0, 0 };
+RE::Shader::Handle m_default_frag_shader = { 0, 0 };
 RendererData m_renderer_data;
 
-glm::mat4x4 getProjectionMatrix(const handle::Camera &camera) {
+glm::mat4x4 getProjectionMatrix(const RE::Camera::Handle &camera) {
 	if (CS::isCameraOrthogonal(camera)) {
 		return glm::ortho(0.0f, CS::getCameraXMag(camera), 0.0f, CS::getCameraYMag(camera), CS::getCameraNearPlane(camera),
 				CS::getCameraFarPlane(camera));
@@ -74,8 +74,12 @@ void regenerateDepthTexture(
 		TS::destroyTexture(m_renderer_data.depth_texture);
 	}
 	m_renderer_data.depth_texture = TS::createTexture(width, height,
-			TextureUsageFlags::SAMPLER | TextureUsageFlags::DEPTH_STENCIL_TARGET,
-			TextureFormat::D16_UNORM);
+			RE::Texture::UsageFlags::SAMPLER | RE::Texture::UsageFlags::DEPTH_STENCIL_TARGET,
+			RE::Texture::Format::D16_UNORM);
+}
+
+bool isMeshInViewFrustum(RE::Mesh::Handle mesh, glm::mat4x4 viewProj) {
+	return true;
 }
 }; // namespace
 
@@ -90,20 +94,21 @@ void init() {
 	MaS::init(m_GPU_device);
 	MS::init(m_GPU_device);
 	m_renderer_data.dummy_texture = TS::createTexture(1, 1,
-			TextureUsageFlags::SAMPLER,
-			TextureFormat::R8G8B8A8_UNORM);
+			RE::Texture::UsageFlags::SAMPLER,
+			RE::Texture::Format::R8G8B8A8_UNORM);
 	TS::uploadBufferToTexture(m_renderer_data.dummy_texture,
 			std::shared_ptr<uint8_t>(new uint8_t[4]{ 255, 255, 255, 255 },
 					std::default_delete<uint8_t[]>()),
 			0, 4);
 	m_renderer_data.dummy_sampler = SaS::createSampler(
-			SamplerFilteringModes::NEAREST,
-			SamplerFilteringModes::NEAREST,
-			SamplerAddressingModes::CLAMP_TO_EDGE,
-			SamplerAddressingModes::CLAMP_TO_EDGE);
+			RE::Sampler::FilteringModes::NEAREST,
+			RE::Sampler::FilteringModes::NEAREST,
+			RE::Sampler::AddressingModes::CLAMP_TO_EDGE,
+			RE::Sampler::AddressingModes::CLAMP_TO_EDGE,
+			RE::Sampler::AddressingModes::CLAMP_TO_EDGE);
 	m_renderer_data.depth_texture = TS::createTexture(1, 1,
-			TextureUsageFlags::SAMPLER | TextureUsageFlags::DEPTH_STENCIL_TARGET,
-			TextureFormat::D16_UNORM);
+			RE::Texture::UsageFlags::SAMPLER | RE::Texture::UsageFlags::DEPTH_STENCIL_TARGET,
+			RE::Texture::Format::D16_UNORM);
 }
 
 void destroy() {
@@ -126,12 +131,12 @@ SDL_GPUDevice *getGPUDevice() {
 }
 
 SDL_GPUTextureSamplerBinding getSamplerBinding(
-		const handle::Texture &texture_handle) {
+		const RE::Texture::Handle &texture_handle) {
 	SDL_GPUTextureSamplerBinding binding = {
 		.texture = TS::getTextureGPUHandle(texture_handle),
 		.sampler = SaS::getSamplerGPUHandle(m_renderer_data.dummy_sampler)
 	};
-	handle::Sampler tex_sampler = TS::getTextureSampler(texture_handle);
+	RE::Sampler::Handle tex_sampler = TS::getTextureSampler(texture_handle);
 	if (SamplerStorageType::isValid(tex_sampler)) {
 		binding.sampler = SaS::getSamplerGPUHandle(tex_sampler);
 	}
@@ -139,15 +144,16 @@ SDL_GPUTextureSamplerBinding getSamplerBinding(
 }
 
 //! infinite projection
-void drawToTexture(const RendererOptions &renderer_options,
-		const handle::Texture &target_texture,
-		const handle::Camera &camera,
+void drawToTexture(const RE::Options &renderer_options,
+		const RE::Texture::Handle &target_texture,
+		const RE::Camera::Handle &camera,
 		const glm::mat4x4 &camera_transform,
 		std::vector<DrawCommand> &draw_commands) {
 	if (draw_commands.size() == 0) {
 		return;
 	}
-
+	TransformMatrices transform_matrices;
+	transform_matrices.proj = getProjectionMatrix(camera);
 	if (TS::getTextureWidth(target_texture) != TS::getTextureWidth(m_renderer_data.depth_texture) ||
 			TS::getTextureHeight(target_texture) != TS::getTextureHeight(m_renderer_data.depth_texture)) {
 		regenerateDepthTexture(
@@ -159,6 +165,9 @@ void drawToTexture(const RendererOptions &renderer_options,
 	std::vector<PrimitiveRenderInfo> primitives;
 
 	for (const auto draw_command : draw_commands) {
+		if (not isMeshInViewFrustum(draw_command.mesh, transform_matrices.proj * camera_transform)) {
+			continue;
+		}
 		const auto &mesh_primitives = MS::getMeshPrimitives(draw_command.mesh);
 		for (const auto &primitive : mesh_primitives) {
 			PrimitiveRenderInfo render_info = { .transform = draw_command.transform,
@@ -208,15 +217,12 @@ void drawToTexture(const RendererOptions &renderer_options,
 	};
 	SDL_GPURenderPass *render_pass = SDL_BeginGPURenderPass(
 			command_buffer, color_target_infos, 1, &depth_stencil_target_info);
-	TransformMatrices transform_matrices;
-	transform_matrices.proj = getProjectionMatrix(camera);
 	for (const auto [transform, primitive, pipeline, material] : primitives) {
 		//! group mesh by material
-		if (SlotMap<std::vector<data::Material>, data::Material>::isValid(
-					primitive->material)) {
+		if (MaterialStorageType::isValid(primitive->material)) {
 			const auto material_factors = MaS::getMaterialFactors(primitive->material);
 			SDL_PushGPUFragmentUniformData(command_buffer, 0, &material_factors,
-					sizeof(data::MaterialFactors));
+					sizeof(RE::Material::Factors));
 			std::vector<SDL_GPUTextureSamplerBinding> sampler_bindings;
 			sampler_bindings.push_back({ .texture = TS::getTextureGPUHandle(m_renderer_data.dummy_texture),
 					.sampler = SaS::getSamplerGPUHandle(m_renderer_data.dummy_sampler) });
@@ -262,9 +268,9 @@ void drawToTexture(const RendererOptions &renderer_options,
 
 		bool has_index_data = false;
 		for (uint32_t i = 0;
-				i < static_cast<uint32_t>(data::VertAttributeIndex::MAX); i++) {
-			if (static_cast<data::VertAttributeIndex>(i) ==
-							data::VertAttributeIndex::INDEX and
+				i < static_cast<uint32_t>(RE::Vertex::AttributeIndex::MAX); i++) {
+			if (static_cast<RE::Vertex::AttributeIndex>(i) ==
+							RE::Vertex::AttributeIndex::INDEX and
 					primitive->attrs_data[i].gpu_buffer != nullptr) {
 				has_index_data = true;
 				SDL_GPUBufferBinding index_binding = {
@@ -295,280 +301,298 @@ void drawToTexture(const RendererOptions &renderer_options,
 }
 
 //! deprecate once UI backend ready
-uintptr_t getTexture(handle::Texture texture) {
+uintptr_t getTexture(RE::Texture::Handle texture) {
 	return reinterpret_cast<uintptr_t>(TS::getTextureGPUHandle(texture));
 }
 
 // Camera wrappers (CS)
-handle::Camera createCamera() {
+namespace Camera {
+RE::Camera::Handle create() {
 	return CS::createCamera();
 }
-void refCamera(handle::Camera camera) {
+void ref(RE::Camera::Handle camera) {
 	CS::refCamera(camera);
 }
-void destroyCamera(handle::Camera camera) {
+void destroy(RE::Camera::Handle camera) {
 	CS::destroyCamera(camera);
 }
-void setPerspectiveCamera(handle::Camera camera, float aspect_ratio,
+void setPerspective(RE::Camera::Handle camera, float aspect_ratio,
 		float fov, float near_plane,
 		float far_plane) {
 	CS::setPerspectiveCamera(camera, aspect_ratio, fov, near_plane, far_plane);
 }
-void setOrthogonalCamera(handle::Camera camera, float xmag,
+void setOrthogonal(RE::Camera::Handle camera, float xmag,
 		float ymag, float near_plane,
 		float far_plane) {
 	CS::setOrthogonalCamera(camera, xmag, ymag, near_plane, far_plane);
 }
-float getCameraAspectRatio(handle::Camera camera) {
+float getAspectRatio(RE::Camera::Handle camera) {
 	return CS::getCameraAspectRatio(camera);
 }
-float getCameraFOV(handle::Camera camera) {
+float getFOV(RE::Camera::Handle camera) {
 	return CS::getCameraFOV(camera);
 }
-float getCameraXMag(handle::Camera camera) {
+float getXMag(RE::Camera::Handle camera) {
 	return CS::getCameraXMag(camera);
 }
-float getCameraYMag(handle::Camera camera) {
+float getYMag(RE::Camera::Handle camera) {
 	return CS::getCameraYMag(camera);
 }
-float getCameraNearPlane(handle::Camera camera) {
+float getNearPlane(RE::Camera::Handle camera) {
 	return CS::getCameraNearPlane(camera);
 }
-float getCameraFarPlane(handle::Camera camera) {
+float getFarPlane(RE::Camera::Handle camera) {
 	return CS::getCameraFarPlane(camera);
 }
-bool isCameraOrthogonal(handle::Camera camera) {
+bool isOrthogonal(RE::Camera::Handle camera) {
 	return CS::isCameraOrthogonal(camera);
 }
-void setCameraAspectRatio(handle::Camera camera, float aspect_ratio) {
+void setAspectRatio(RE::Camera::Handle camera, float aspect_ratio) {
 	CS::setCameraAspectRatio(camera, aspect_ratio);
 }
-void setCameraFOV(handle::Camera camera, float fov) {
+void setFOV(RE::Camera::Handle camera, float fov) {
 	CS::setCameraFOV(camera, fov);
 }
-void setCameraXMag(handle::Camera camera, float xmag) {
+void setXMag(RE::Camera::Handle camera, float xmag) {
 	CS::setCameraXMag(camera, xmag);
 }
-void setCameraYMag(handle::Camera camera, float ymag) {
+void setYMag(RE::Camera::Handle camera, float ymag) {
 	CS::setCameraYMag(camera, ymag);
 }
-void setCameraNearPlane(handle::Camera camera, float near_plane) {
+void setNearPlane(RE::Camera::Handle camera, float near_plane) {
 	CS::setCameraNearPlane(camera, near_plane);
 }
-void setCameraFarPlane(handle::Camera camera, float far_plane) {
+void setFarPlane(RE::Camera::Handle camera, float far_plane) {
 	CS::setCameraFarPlane(camera, far_plane);
 }
-void setCameraIsOrthogonal(handle::Camera camera, bool is_orthogonal) {
+void setIsOrthogonal(RE::Camera::Handle camera, bool is_orthogonal) {
 	CS::setCameraIsOrthogonal(camera, is_orthogonal);
 }
+bool isValid(RE::Camera::Handle camera) {
+	return CS::isValid(camera);
+}
+}; // namespace Camera
 
 // Material wrappers (MaS)
-handle::Material createMaterial() {
+namespace Material {
+RE::Material::Handle create() {
 	return MaS::createMaterial();
 }
-void refMaterial(handle::Material material) {
+void ref(RE::Material::Handle material) {
 	MaS::refMaterial(material);
 }
-void destroyMaterial(handle::Material material) {
+void destroy(RE::Material::Handle material) {
 	MaS::destroyMaterial(material);
 }
-data::MaterialOptions getMaterialOptions(handle::Material material) {
+RE::Material::Options getOptions(RE::Material::Handle material) {
 	return MaS::getMaterialOptions(material);
 }
-glm::vec4 getMaterialColorFactor(handle::Material material) {
+glm::vec4 getColorFactor(RE::Material::Handle material) {
 	return MaS::getMaterialColorFactor(material);
 }
-glm::vec3 getMaterialEmissiveFactor(handle::Material material) {
+glm::vec3 getEmissiveFactor(RE::Material::Handle material) {
 	return MaS::getMaterialEmissiveFactor(material);
 }
-handle::Texture getMaterialNormalTexture(handle::Material material) {
+RE::Texture::Handle getNormalTexture(RE::Material::Handle material) {
 	return MaS::getMaterialNormalTexture(material);
 }
-handle::Texture getMaterialEmissiveTexture(handle::Material material) {
+RE::Texture::Handle getEmissiveTexture(RE::Material::Handle material) {
 	return MaS::getMaterialEmissiveTexture(material);
 }
-handle::Texture getMaterialOcclusionTexture(handle::Material material) {
+RE::Texture::Handle getOcclusionTexture(RE::Material::Handle material) {
 	return MaS::getMaterialOcclusionTexture(material);
 }
-handle::Texture getMaterialColorTexture(handle::Material material) {
+RE::Texture::Handle getColorTexture(RE::Material::Handle material) {
 	return MaS::getMaterialColorTexture(material);
 }
-handle::Texture getMaterialMetallicRoughnessTexture(handle::Material material) {
+RE::Texture::Handle getMetallicRoughnessTexture(RE::Material::Handle material) {
 	return MaS::getMaterialMetallicRoughnessTexture(material);
 }
-float getMaterialNormalScale(handle::Material material) {
+float getNormalScale(RE::Material::Handle material) {
 	return MaS::getMaterialNormalScale(material);
 }
-float getMaterialMetallicFactor(handle::Material material) {
+float getMetallicFactor(RE::Material::Handle material) {
 	return MaS::getMaterialMetallicFactor(material);
 }
-float getMaterialRoughnessFactor(handle::Material material) {
+float getRoughnessFactor(RE::Material::Handle material) {
 	return MaS::getMaterialRoughnessFactor(material);
 }
-void setMaterialColorFactor(handle::Material material, glm::vec4 color_factor) {
+void setColorFactor(RE::Material::Handle material, glm::vec4 color_factor) {
 	MaS::setMaterialColorFactor(material, color_factor);
 }
-void setMaterialEmissiveFactor(handle::Material material, glm::vec3 emissive_factor) {
+void setEmissiveFactor(RE::Material::Handle material, glm::vec3 emissive_factor) {
 	MaS::setMaterialEmissiveFactor(material, emissive_factor);
 }
-void setMaterialNormalTexture(handle::Material material, handle::Texture normal) {
+void setNormalTexture(RE::Material::Handle material, RE::Texture::Handle normal) {
 	MaS::setMaterialNormalTexture(material, normal);
 }
-void setMaterialEmissiveTexture(handle::Material material, handle::Texture emissive) {
+void setEmissiveTexture(RE::Material::Handle material, RE::Texture::Handle emissive) {
 	MaS::setMaterialEmissiveTexture(material, emissive);
 }
-void setMaterialOcclusionTexture(handle::Material material, handle::Texture occlusion) {
+void setOcclusionTexture(RE::Material::Handle material, RE::Texture::Handle occlusion) {
 	MaS::setMaterialOcclusionTexture(material, occlusion);
 }
-void setMaterialColorTexture(handle::Material material, handle::Texture color) {
+void setColorTexture(RE::Material::Handle material, RE::Texture::Handle color) {
 	MaS::setMaterialColorTexture(material, color);
 }
-void setMaterialMetallicRoughness(handle::Material material, handle::Texture metallic_roughness) {
+void setMetallicRoughnessTexture(RE::Material::Handle material, RE::Texture::Handle metallic_roughness) {
 	MaS::setMaterialMetallicRoughness(material, metallic_roughness);
 }
-void setMaterialNormalScale(handle::Material material, float normal_scale) {
+void setNormalScale(RE::Material::Handle material, float normal_scale) {
 	MaS::setMaterialNormalScale(material, normal_scale);
 }
-void setMaterialMetallicFactor(handle::Material material, float metallic_factor) {
+void setMetallicFactor(RE::Material::Handle material, float metallic_factor) {
 	MaS::setMaterialMetallicFactor(material, metallic_factor);
 }
-void setMaterialRoughnessFactor(handle::Material material, float roughness_factor) {
+void setRoughnessFactor(RE::Material::Handle material, float roughness_factor) {
 	MaS::setMaterialRoughnessFactor(material, roughness_factor);
 }
+bool isValid(RE::Material::Handle material) {
+	return MaS::isValid(material);
+}
+}; // namespace Material
 
 // Mesh wrappers (MS)
-handle::Mesh createMesh(data::MeshData &mesh_data) {
+namespace Mesh {
+RE::Mesh::Handle create(RE::Mesh::Arg &mesh_data) {
 	return MS::createMesh(mesh_data);
 }
-void refMesh(handle::Mesh mesh) {
+void ref(RE::Mesh::Handle mesh) {
 	MS::refMesh(mesh);
 }
-void destroyMesh(handle::Mesh mesh) {
+void destroy(RE::Mesh::Handle mesh) {
 	MS::destroyMesh(mesh);
 }
-AABB getMeshAABB(handle::Mesh mesh) {
+AABB getAABB(RE::Mesh::Handle mesh) {
 	return MS::getMeshAABB(mesh);
 }
-const data::Primitive &getPrimitiveData(handle::Mesh mesh, uint32_t primitive_index) {
+const RE::Mesh::Primitive::Data &getPrimitiveData(RE::Mesh::Handle mesh, uint32_t primitive_index) {
 	return MS::getPrimitiveData(mesh, primitive_index);
 }
-void setMeshAABB(handle::Mesh mesh, AABB aabb) {
+void setAABB(RE::Mesh::Handle mesh, AABB aabb) {
 	MS::setMeshAABB(mesh, aabb);
 }
-const std::vector<data::Primitive> &getMeshPrimitives(handle::Mesh mesh) {
+const std::vector<RE::Mesh::Primitive::Data> &getPrimitives(RE::Mesh::Handle mesh) {
 	return MS::getMeshPrimitives(mesh);
 }
-
-// Pipeline wrappers (PS)
-handle::Pipeline createPipeline(const data::PipelineOptions &options) {
-	return PS::createPipeline(options);
+bool isValid(RE::Mesh::Handle mesh) {
+	return MS::isValid(mesh);
 }
+}; // namespace Mesh
 
 // Sampler wrappers (SaS)
-handle::Sampler createSampler(SamplerFilteringModes mag_filter, SamplerFilteringModes min_filter, SamplerAddressingModes u_addressing, SamplerAddressingModes v_addressing) {
-	return SaS::createSampler(mag_filter, min_filter, u_addressing, v_addressing);
+namespace Sampler {
+RE::Sampler::Handle create(
+		RE::Sampler::FilteringModes mag_filter,
+		RE::Sampler::FilteringModes min_filter,
+		RE::Sampler::AddressingModes u_addressing,
+		RE::Sampler::AddressingModes v_addressing,
+		RE::Sampler::AddressingModes w_addressing) {
+	return SaS::createSampler(mag_filter, min_filter, u_addressing, v_addressing, w_addressing);
 }
-void refSampler(handle::Sampler sampler) {
+void ref(RE::Sampler::Handle sampler) {
 	SaS::refSampler(sampler);
 }
-void destroySampler(handle::Sampler sampler) {
+void destroy(RE::Sampler::Handle sampler) {
 	SaS::destroySampler(sampler);
 }
-SamplerFilteringModes getSamplerMagFilter(handle::Sampler sampler) {
+RE::Sampler::FilteringModes getMagFilter(RE::Sampler::Handle sampler) {
 	return SaS::getSamplerMagFilter(sampler);
 }
-SamplerFilteringModes getSamplerMinFilter(handle::Sampler sampler) {
+RE::Sampler::FilteringModes getMinFilter(RE::Sampler::Handle sampler) {
 	return SaS::getSamplerMinFilter(sampler);
 }
-SamplerAddressingModes getSamplerUAddressing(handle::Sampler sampler) {
+RE::Sampler::AddressingModes getUAddressing(RE::Sampler::Handle sampler) {
 	return SaS::getSamplerUAddressing(sampler);
 }
-SamplerAddressingModes getSamplerVAddressing(handle::Sampler sampler) {
+RE::Sampler::AddressingModes getVAddressing(RE::Sampler::Handle sampler) {
 	return SaS::getSamplerVAddressing(sampler);
 }
-void setSamplerMagFilter(handle::Sampler sampler, SamplerFilteringModes mode) {
+void setMagFilter(RE::Sampler::Handle sampler, RE::Sampler::FilteringModes mode) {
 	SaS::setSamplerMagFilter(sampler, mode);
 }
-void setSamplerMinFilter(handle::Sampler sampler, SamplerFilteringModes mode) {
+void setMinFilter(RE::Sampler::Handle sampler, RE::Sampler::FilteringModes mode) {
 	SaS::setSamplerMinFilter(sampler, mode);
 }
-void setSamplerUAddressing(handle::Sampler sampler, SamplerAddressingModes mode) {
+void setUAddressing(RE::Sampler::Handle sampler, RE::Sampler::AddressingModes mode) {
 	SaS::setSamplerUAddressing(sampler, mode);
 }
-void setSamplerVAddressing(handle::Sampler sampler, SamplerAddressingModes mode) {
+void setVAddressing(RE::Sampler::Handle sampler, RE::Sampler::AddressingModes mode) {
 	SaS::setSamplerVAddressing(sampler, mode);
 }
+bool isValid(RE::Sampler::Handle sampler) {
+	return SaS::isValid(sampler);
+}
+}; // namespace Sampler
 
 // Shader wrappers (ShS)
-handle::Shader createShader(const std::string &shader_file, const std::vector<data::ShaderDefinition> &defines) {
+namespace Shader {
+RE::Shader::Handle create(const std::string &shader_file, const std::vector<RE::Shader::Definition> &defines) {
 	return ShS::createShader(shader_file, defines);
 }
-void refShader(handle::Shader shader) {
+void ref(RE::Shader::Handle shader) {
 	ShS::refShader(shader);
 }
-void destroyShader(handle::Shader shader) {
+void destroy(RE::Shader::Handle shader) {
 	ShS::destroyShader(shader);
 }
-ShaderType getShaderType(handle::Shader shader) {
+RE::Shader::Type getType(RE::Shader::Handle shader) {
 	return ShS::getShaderType(shader);
 }
-uint32_t getShaderNumSamplers(handle::Shader shader) {
-	return ShS::getShaderNumSamplers(shader);
+bool isValid(RE::Shader::Handle shader) {
+	return ShS::isValid(shader);
 }
-uint32_t getShaderNumStorageTextures(handle::Shader shader) {
-	return ShS::getShaderNumStorageTextures(shader);
-}
-uint32_t getShaderNumStorageBuffers(handle::Shader shader) {
-	return ShS::getShaderNumStorageBuffers(shader);
-}
-uint32_t getShaderNumUniformBuffers(handle::Shader shader) {
-	return ShS::getShaderNumUniformBuffers(shader);
-}
-SDL_GPUShader *getShaderGPUHandle(handle::Shader shader) {
-	return ShS::getShaderGPUHandle(shader);
-}
+}; // namespace Shader
 
 // Texture wrappers (TS)
-handle::Texture createTexture(uint32_t width, uint32_t height, TextureUsageFlags usage_flags, TextureFormat format) {
+namespace Texture {
+Texture::Handle create(
+		uint32_t width, uint32_t height,
+		Texture::UsageFlags usage_flags,
+		Texture::Format format) {
 	return TS::createTexture(width, height, usage_flags, format);
 }
-void refTexture(handle::Texture texture) {
+void ref(Texture::Handle texture) {
 	TS::refTexture(texture);
 }
-void destroyTexture(handle::Texture texture) {
+void destroy(Texture::Handle texture) {
 	TS::destroyTexture(texture);
 }
-uint32_t getTextureWidth(handle::Texture texture) {
+uint32_t getWidth(Texture::Handle texture) {
 	return TS::getTextureWidth(texture);
 }
-uint32_t getTextureHeight(handle::Texture texture) {
+uint32_t getHeight(Texture::Handle texture) {
 	return TS::getTextureHeight(texture);
 }
-TextureFormat getTextureFormat(handle::Texture texture) {
+Texture::Format getFormat(Texture::Handle texture) {
 	return TS::getTextureFormat(texture);
 }
-uint32_t getTextureUsageFlags(handle::Texture texture) {
+uint32_t getUsageFlags(Texture::Handle texture) {
 	return TS::getTextureUsageFlags(texture);
 }
-handle::Sampler getTextureSampler(handle::Texture texture) {
+RE::Sampler::Handle getSampler(RE::Texture::Handle texture) {
 	return TS::getTextureSampler(texture);
 }
-void setTextureWidth(handle::Texture texture, uint32_t width) {
+void setWidth(RE::Texture::Handle texture, uint32_t width) {
 	TS::setTextureWidth(texture, width);
 }
-void setTextureHeight(handle::Texture texture, uint32_t height) {
+void setHeight(RE::Texture::Handle texture, uint32_t height) {
 	TS::setTextureHeight(texture, height);
 }
-void setTextureFormat(handle::Texture texture, TextureFormat format) {
+void setFormat(RE::Texture::Handle texture, RE::Texture::Format format) {
 	TS::setTextureFormat(texture, format);
 }
-void setTextureUsageFlags(handle::Texture texture, uint32_t usage_flags) {
+void setUsageFlags(RE::Texture::Handle texture, uint32_t usage_flags) {
 	TS::setTextureUsageFlags(texture, usage_flags);
 }
-void setTextureSampler(handle::Texture texture, handle::Sampler sampler) {
+void setSampler(RE::Texture::Handle texture, RE::Sampler::Handle sampler) {
 	TS::setTextureSampler(texture, sampler);
 }
-void uploadBufferToTexture(handle::Texture texture, std::shared_ptr<uint8_t> buffer, size_t offset, size_t count) {
+void uploadBuffer(RE::Texture::Handle texture, std::shared_ptr<uint8_t> buffer, size_t offset, size_t count) {
 	TS::uploadBufferToTexture(texture, buffer, offset, count);
 }
+bool isValid(RE::Texture::Handle texture) {
+	return TS::isValid(texture);
+}
+}; // namespace Texture
 }; // namespace RE

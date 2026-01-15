@@ -16,113 +16,116 @@ void init(SDL_GPUDevice *device) {
 void destroy() {}
 
 // Material
-handle::Material createMaterial() {
-	data::Material default_material{};
+RE::Material::Handle createMaterial() {
+	RE::Material::Data default_material{};
 	default_material.frag_shader_path = GAME_ENGINE_DEFAULT_SHADER_DIR "base.vert.hlsl";
 	default_material.vert_shader_path = GAME_ENGINE_DEFAULT_SHADER_DIR "base.frag.hlsl";
 	return material_storage.insert(default_material);
 }
-void refMaterial(handle::Material material) {
+void refMaterial(RE::Material::Handle material) {
 	material_storage.ref(material);
 }
-void destroyMaterial(handle::Material material) {
+void destroyMaterial(RE::Material::Handle material) {
 	material_storage.erase(material);
 }
-data::MaterialOptions getMaterialOptions(handle::Material material) {
+RE::Material::Options getMaterialOptions(RE::Material::Handle material) {
 	return material_storage.get(material).options;
 }
-glm::vec4 getMaterialColorFactor(handle::Material material) {
+glm::vec4 getMaterialColorFactor(RE::Material::Handle material) {
 	return material_storage.get(material).factors.color_factor;
 }
-glm::vec3 getMaterialEmissiveFactor(handle::Material material) {
+glm::vec3 getMaterialEmissiveFactor(RE::Material::Handle material) {
 	return material_storage.get(material).factors.emissive_factor;
 }
-handle::Texture getMaterialNormalTexture(handle::Material material) {
+RE::Texture::Handle getMaterialNormalTexture(RE::Material::Handle material) {
 	return material_storage.get(material).normal;
 }
-handle::Texture getMaterialEmissiveTexture(handle::Material material) {
+RE::Texture::Handle getMaterialEmissiveTexture(RE::Material::Handle material) {
 	return material_storage.get(material).emissive;
 }
-handle::Texture getMaterialOcclusionTexture(handle::Material material) {
+RE::Texture::Handle getMaterialOcclusionTexture(RE::Material::Handle material) {
 	return material_storage.get(material).occlusion;
 }
-handle::Texture getMaterialColorTexture(handle::Material material) {
+RE::Texture::Handle getMaterialColorTexture(RE::Material::Handle material) {
 	return material_storage.get(material).color;
 }
-handle::Texture getMaterialMetallicRoughnessTexture(handle::Material material) {
+RE::Texture::Handle getMaterialMetallicRoughnessTexture(RE::Material::Handle material) {
 	return material_storage.get(material).metallic_roughness;
 }
-float getMaterialNormalScale(handle::Material material) {
+float getMaterialNormalScale(RE::Material::Handle material) {
 	return material_storage.get(material).factors.normal_scale;
 }
-float getMaterialMetallicFactor(handle::Material material) {
+float getMaterialMetallicFactor(RE::Material::Handle material) {
 	return material_storage.get(material).factors.metallic_factor;
 }
-float getMaterialRoughnessFactor(handle::Material material) {
-	return material_storage.get(material).factors.metallic_factor;
+float getMaterialRoughnessFactor(RE::Material::Handle material) {
+	return material_storage.get(material).factors.roughness_factor;
 }
-void setMaterialColorFactor(handle::Material material,
+void setMaterialColorFactor(RE::Material::Handle material,
 		glm::vec4 color_factor) {
 	material_storage.get(material).factors.color_factor = color_factor;
-	material_storage.get(material).options |= data::MaterialOptions::COLOR_FACTOR_USED;
+	material_storage.get(material).options |= RE::Material::Options::COLOR_FACTOR_USED;
 	material_storage.setIsEdited(material);
 }
-void setMaterialEmissiveFactor(handle::Material material,
+void setMaterialEmissiveFactor(RE::Material::Handle material,
 		glm::vec3 emissive_factor) {
 	material_storage.get(material).factors.emissive_factor = emissive_factor;
 	material_storage.setIsEdited(material);
 }
-void setMaterialNormalTexture(handle::Material material,
-		handle::Texture normal) {
+void setMaterialNormalTexture(RE::Material::Handle material,
+		RE::Texture::Handle normal) {
 	TS::refTexture(normal); //! erase previous texture reserve index 0 for
 							//! invalid in slotmap
 	material_storage.get(material).normal = normal;
-	material_storage.get(material).options |= data::MaterialOptions::NORMAL_TEXTURE;
+	material_storage.get(material).options |= RE::Material::Options::NORMAL_TEXTURE;
 	material_storage.setIsEdited(material);
 }
-void setMaterialEmissiveTexture(handle::Material material,
-		handle::Texture emissive) {
+void setMaterialEmissiveTexture(RE::Material::Handle material,
+		RE::Texture::Handle emissive) {
 	TS::refTexture(emissive);
 	material_storage.get(material).emissive = emissive;
-	material_storage.get(material).options |= data::MaterialOptions::EMISSIVE_TEXTURE;
+	material_storage.get(material).options |= RE::Material::Options::EMISSIVE_TEXTURE;
 	material_storage.setIsEdited(material);
 }
-void setMaterialOcclusionTexture(handle::Material material,
-		handle::Texture occlusion) {
+void setMaterialOcclusionTexture(RE::Material::Handle material,
+		RE::Texture::Handle occlusion) {
 	TS::refTexture(occlusion);
 	material_storage.get(material).occlusion = occlusion;
-	material_storage.get(material).options |= data::MaterialOptions::OCCLUSION_TEXTURE;
+	material_storage.get(material).options |= RE::Material::Options::OCCLUSION_TEXTURE;
 	material_storage.setIsEdited(material);
 }
-void setMaterialColorTexture(handle::Material material,
-		handle::Texture color) {
+void setMaterialColorTexture(RE::Material::Handle material,
+		RE::Texture::Handle color) {
 	TS::refTexture(color);
 	material_storage.get(material).color = color;
-	material_storage.get(material).options |= data::MaterialOptions::COLOR_TEXTURE;
+	material_storage.get(material).options |= RE::Material::Options::COLOR_TEXTURE;
 	material_storage.setIsEdited(material);
 }
-void setMaterialMetallicRoughness(handle::Material material,
-		handle::Texture metallic_roughness) {
+void setMaterialMetallicRoughness(RE::Material::Handle material,
+		RE::Texture::Handle metallic_roughness) {
 	TS::refTexture(metallic_roughness);
 	material_storage.get(material).metallic_roughness = metallic_roughness;
-	material_storage.get(material).options |= data::MaterialOptions::METALLIC_ROUGHNESS_TEXTURE;
+	material_storage.get(material).options |= RE::Material::Options::METALLIC_ROUGHNESS_TEXTURE;
 	material_storage.setIsEdited(material);
 }
-void setMaterialNormalScale(handle::Material material, float normal_scale) {
+void setMaterialNormalScale(RE::Material::Handle material, float normal_scale) {
 	material_storage.get(material).factors.normal_scale = normal_scale;
 	material_storage.setIsEdited(material);
 }
-void setMaterialMetallicFactor(handle::Material material,
+void setMaterialMetallicFactor(RE::Material::Handle material,
 		float metallic_factor) {
 	material_storage.get(material).factors.metallic_factor = metallic_factor;
 	material_storage.setIsEdited(material);
 }
-void setMaterialRoughnessFactor(handle::Material material,
+void setMaterialRoughnessFactor(RE::Material::Handle material,
 		float roughness_factor) {
 	material_storage.get(material).factors.metallic_factor = roughness_factor;
 	material_storage.setIsEdited(material);
 }
-data::MaterialFactors getMaterialFactors(handle::Material material) {
+RE::Material::Factors getMaterialFactors(RE::Material::Handle material) {
 	return material_storage.get(material).factors;
+}
+bool isValid(RE::Material::Handle material){
+	return MaterialStorageType::isValid(material);
 }
 }; // namespace MaS

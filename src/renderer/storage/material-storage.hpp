@@ -5,45 +5,46 @@
 #include <renderer/storage/texture-storage.hpp>
 #include <renderer/types.hpp>
 
-using MaterialStorageType = SlotMap<std::vector<data::Material>, data::Material>;
+using MaterialStorageType = SlotMap<std::vector<RE::Material::Data>, RE::Material::Data, RE::Material::Handle>;
 
 // Material Storage
 namespace MaS {
 
 void init(SDL_GPUDevice *device);
 void destroy();
-handle::Material createMaterial();
-void refMaterial(handle::Material material);
-void destroyMaterial(handle::Material material);
-data::MaterialOptions getMaterialOptions(handle::Material material);
-data::MaterialFactors getMaterialFactors(handle::Material material);
-glm::vec4 getMaterialColorFactor(handle::Material material);
-glm::vec3 getMaterialEmissiveFactor(handle::Material material);
-handle::Texture getMaterialNormalTexture(handle::Material material);
-handle::Texture getMaterialEmissiveTexture(handle::Material material);
-handle::Texture getMaterialOcclusionTexture(handle::Material material);
-handle::Texture getMaterialColorTexture(handle::Material material);
-handle::Texture getMaterialMetallicRoughnessTexture(handle::Material material);
-float getMaterialNormalScale(handle::Material material);
-float getMaterialMetallicFactor(handle::Material material);
-float getMaterialRoughnessFactor(handle::Material material);
-void setMaterialColorFactor(handle::Material material,
+RE::Material::Handle createMaterial();
+void refMaterial(RE::Material::Handle material);
+void destroyMaterial(RE::Material::Handle material);
+RE::Material::Options getMaterialOptions(RE::Material::Handle material);
+RE::Material::Factors getMaterialFactors(RE::Material::Handle material);
+glm::vec4 getMaterialColorFactor(RE::Material::Handle material);
+glm::vec3 getMaterialEmissiveFactor(RE::Material::Handle material);
+RE::Texture::Handle getMaterialNormalTexture(RE::Material::Handle material);
+RE::Texture::Handle getMaterialEmissiveTexture(RE::Material::Handle material);
+RE::Texture::Handle getMaterialOcclusionTexture(RE::Material::Handle material);
+RE::Texture::Handle getMaterialColorTexture(RE::Material::Handle material);
+RE::Texture::Handle getMaterialMetallicRoughnessTexture(RE::Material::Handle material);
+float getMaterialNormalScale(RE::Material::Handle material);
+float getMaterialMetallicFactor(RE::Material::Handle material);
+float getMaterialRoughnessFactor(RE::Material::Handle material);
+void setMaterialColorFactor(RE::Material::Handle material,
 		glm::vec4 color_factor);
-void setMaterialEmissiveFactor(handle::Material material,
+void setMaterialEmissiveFactor(RE::Material::Handle material,
 		glm::vec3 emissive_factor);
-void setMaterialNormalTexture(handle::Material material,
-		handle::Texture normal);
-void setMaterialEmissiveTexture(handle::Material material,
-		handle::Texture emissive);
-void setMaterialOcclusionTexture(handle::Material material,
-		handle::Texture occlusion);
-void setMaterialColorTexture(handle::Material material,
-		handle::Texture color);
-void setMaterialMetallicRoughness(handle::Material material,
-		handle::Texture metallic_roughness);
-void setMaterialNormalScale(handle::Material material, float normal_scale);
-void setMaterialMetallicFactor(handle::Material material,
+void setMaterialNormalTexture(RE::Material::Handle material,
+		RE::Texture::Handle normal);
+void setMaterialEmissiveTexture(RE::Material::Handle material,
+		RE::Texture::Handle emissive);
+void setMaterialOcclusionTexture(RE::Material::Handle material,
+		RE::Texture::Handle occlusion);
+void setMaterialColorTexture(RE::Material::Handle material,
+		RE::Texture::Handle color);
+void setMaterialMetallicRoughness(RE::Material::Handle material,
+		RE::Texture::Handle metallic_roughness);
+void setMaterialNormalScale(RE::Material::Handle material, float normal_scale);
+void setMaterialMetallicFactor(RE::Material::Handle material,
 		float metallic_factor);
-void setMaterialRoughnessFactor(handle::Material material,
+void setMaterialRoughnessFactor(RE::Material::Handle material,
 		float roughness_factor);
-}; // namespace MS
+bool isValid(RE::Material::Handle material);
+}; // namespace MaS

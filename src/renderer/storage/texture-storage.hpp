@@ -5,30 +5,31 @@
 #include <misc/slot-map.hpp>
 #include <renderer/types.hpp>
 
-using TextureStorageType = SlotMap<std::vector<data::Texture>, data::Texture>;
+using TextureStorageType = SlotMap<std::vector<RE::Texture::Data>, RE::Texture::Data, RE::Texture::Handle>;
 
 namespace TS {
 // Texture
 void init(SDL_GPUDevice *device);
 void destroy();
-handle::Texture createTexture(uint32_t width, uint32_t height,
+RE::Texture::Handle createTexture(uint32_t width, uint32_t height,
 		// TextureType type, ! maybe other texture supports in the future
-		TextureUsageFlags usage_flags,
-		TextureFormat format);
-void refTexture(handle::Texture texture);
-void destroyTexture(handle::Texture texture);
-uint32_t getTextureWidth(handle::Texture texture);
-uint32_t getTextureHeight(handle::Texture texture);
-TextureFormat getTextureFormat(handle::Texture texture);
-uint32_t getTextureUsageFlags(handle::Texture texture);
-handle::Sampler getTextureSampler(handle::Texture texture);
-void setTextureWidth(handle::Texture texture, uint32_t width);
-void setTextureHeight(handle::Texture texture, uint32_t height);
-void setTextureFormat(handle::Texture texture, TextureFormat format);
-void setTextureUsageFlags(handle::Texture texture, uint32_t usage_flags);
-void setTextureSampler(handle::Texture texture, handle::Sampler sampler);
-void uploadBufferToTexture(handle::Texture texture,
+		RE::Texture::UsageFlags usage_flags,
+		RE::Texture::Format format);
+void refTexture(RE::Texture::Handle texture);
+void destroyTexture(RE::Texture::Handle texture);
+uint32_t getTextureWidth(RE::Texture::Handle texture);
+uint32_t getTextureHeight(RE::Texture::Handle texture);
+RE::Texture::Format getTextureFormat(RE::Texture::Handle texture);
+uint32_t getTextureUsageFlags(RE::Texture::Handle texture);
+RE::Sampler::Handle getTextureSampler(RE::Texture::Handle texture);
+void setTextureWidth(RE::Texture::Handle texture, uint32_t width);
+void setTextureHeight(RE::Texture::Handle texture, uint32_t height);
+void setTextureFormat(RE::Texture::Handle texture, RE::Texture::Format format);
+void setTextureUsageFlags(RE::Texture::Handle texture, uint32_t usage_flags);
+void setTextureSampler(RE::Texture::Handle texture, RE::Sampler::Handle sampler);
+void uploadBufferToTexture(RE::Texture::Handle texture,
 		std::shared_ptr<uint8_t> buffer, size_t offset,
 		size_t count);
-SDL_GPUTexture *getTextureGPUHandle(handle::Texture texture);
+SDL_GPUTexture *getTextureGPUHandle(RE::Texture::Handle texture);
+bool isValid(RE::Texture::Handle texture);
 }; // namespace TS

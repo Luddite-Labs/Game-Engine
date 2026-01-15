@@ -15,7 +15,7 @@ struct Slot {
   uint32_t ref_count;
 };
 
-template <typename T, typename D> class SlotMap {
+template <typename T, typename D, typename C> class SlotMap {
 private:
   std::vector<Slot> slots;
   T data;
@@ -35,10 +35,10 @@ public:
     index_slot_map.reserve(256);
     is_edited.reserve(256);
   }
-  static bool isValid(const Handle &handle) { return handle.generation != 0; }
+  static bool isValid(const C &handle) { return handle.generation != 0; }
 
-  Handle insert(const D &val) {
-    Handle handle;
+  C insert(const D &val) {
+    C handle;
     if (free_slot_count == 0) {
       const uint32_t data_index = data.size();
       const uint32_t slot_index = slots.size();
@@ -67,7 +67,7 @@ public:
     return handle;
   }
   //! ref counting not working correctly
-  void erase(Handle &handle) {
+  void erase(C &handle) {
     // const uint32_t slot_index = handle.slot_index;
     // slots[slot_index].ref_count -= 1;
     // if (slots[slot_index].ref_count == 0) {
@@ -84,7 +84,7 @@ public:
     // }
   }
 
-  void ref(Handle handle) { slots[handle.slot_index].ref_count += 1; }
+  void ref(C handle) { slots[handle.slot_index].ref_count += 1; }
 
   void update(std::function<void(D &val)> callback) {
     for (int i = 0; i < data.size(); i++) {
@@ -101,13 +101,13 @@ public:
       }
     }
   }
-  D &get(const Handle &handle) {
+  D &get(const C &handle) {
     return data[slots[handle.slot_index].data_index];
   }
   D &operator[](int index) { return data[index]; }
   uint32_t size() { return live_node_count; }
 
-  void setIsEdited(Handle &handle) {
+  void setIsEdited(C &handle) {
     is_edited[slots[handle.slot_index].data_index] = true;
   }
 };

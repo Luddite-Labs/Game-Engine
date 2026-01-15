@@ -6,8 +6,8 @@
 #include <unordered_map>
 
 template <>
-struct std::hash<data::PipelineOptions> {
-	size_t operator()(const data::PipelineOptions &p) const {
+struct std::hash<RE::Pipeline::Options> {
+	size_t operator()(const RE::Pipeline::Options &p) const {
 		size_t hash = 0;
 		hash |= p.vert_shader.slot_index;
 		hash <<= 16;
@@ -28,7 +28,7 @@ struct std::hash<data::PipelineOptions> {
 };
 
 namespace {
-using PipelineCache = std::unordered_map<data::PipelineOptions, handle::Pipeline>;
+using PipelineCache = std::unordered_map<RE::Pipeline::Options, RE::Pipeline::Handle>;
 
 SDL_GPUDevice *m_GPU_device;
 PipelineStorageType pipeline_storage;
@@ -42,7 +42,7 @@ void init(SDL_GPUDevice *device) {
 	m_GPU_device = device;
 }
 void destroy() {}
-handle::Pipeline createPipeline(const data::PipelineOptions &options) {
+RE::Pipeline::Handle createPipeline(const RE::Pipeline::Options &options) {
 	if (pipeline_cache.find(options) != pipeline_cache.end()) {
 		return pipeline_cache[options];
 	}
@@ -54,31 +54,31 @@ handle::Pipeline createPipeline(const data::PipelineOptions &options) {
 	SDL_GPUGraphicsPipelineTargetInfo target_info;
 	target_info.color_target_descriptions = color_target_descriptions;
 	target_info.num_color_targets = 1;
-	if (options.primitive_type == data::PrimitiveType::TRIANGLELIST) {
+	if (options.primitive_type == RE::Mesh::Primitive::Type::TRIANGLELIST) {
 		target_info.depth_stencil_format = SDL_GPU_TEXTUREFORMAT_D16_UNORM;
 		target_info.has_depth_stencil_target = true;
 	}
 	std::vector<SDL_GPUVertexAttribute>
 			vert_attrs; //! specialise accross primitve type check ate least one
 						//! vert attr present
-	if ((options.vert_attrs & data::VertAttributes::POSITION) ==
-			data::VertAttributes::POSITION) {
-		vert_attrs.push_back({ .location = static_cast<uint8_t>(data::VertAttributeIndex::POSITION),
-				.buffer_slot = static_cast<uint8_t>(data::VertAttributeIndex::POSITION),
+	if ((options.vert_attrs & RE::Vertex::Attributes::POSITION) ==
+			RE::Vertex::Attributes::POSITION) {
+		vert_attrs.push_back({ .location = static_cast<uint8_t>(RE::Vertex::AttributeIndex::POSITION),
+				.buffer_slot = static_cast<uint8_t>(RE::Vertex::AttributeIndex::POSITION),
 				.format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3,
 				.offset = 0 });
 	}
-	if ((options.vert_attrs & data::VertAttributes::NORMAL) ==
-			data::VertAttributes::NORMAL) {
-		vert_attrs.push_back({ .location = static_cast<uint8_t>(data::VertAttributeIndex::NORMAL),
-				.buffer_slot = static_cast<uint8_t>(data::VertAttributeIndex::NORMAL),
+	if ((options.vert_attrs & RE::Vertex::Attributes::NORMAL) ==
+			RE::Vertex::Attributes::NORMAL) {
+		vert_attrs.push_back({ .location = static_cast<uint8_t>(RE::Vertex::AttributeIndex::NORMAL),
+				.buffer_slot = static_cast<uint8_t>(RE::Vertex::AttributeIndex::NORMAL),
 				.format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3,
 				.offset = 0 });
 	}
-	if ((options.vert_attrs & data::VertAttributes::UV) ==
-			data::VertAttributes::UV) {
-		vert_attrs.push_back({ .location = static_cast<uint8_t>(data::VertAttributeIndex::UV),
-				.buffer_slot = static_cast<uint8_t>(data::VertAttributeIndex::UV),
+	if ((options.vert_attrs & RE::Vertex::Attributes::UV) ==
+			RE::Vertex::Attributes::UV) {
+		vert_attrs.push_back({ .location = static_cast<uint8_t>(RE::Vertex::AttributeIndex::UV),
+				.buffer_slot = static_cast<uint8_t>(RE::Vertex::AttributeIndex::UV),
 				.format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT2,
 				.offset = 0 });
 	}
@@ -131,7 +131,7 @@ handle::Pipeline createPipeline(const data::PipelineOptions &options) {
 		.cull_mode = SDL_GPU_CULLMODE_BACK,
 		.front_face = SDL_GPU_FRONTFACE_COUNTER_CLOCKWISE
 	};
-	if (options.primitive_type == data::PrimitiveType::TRIANGLELIST) {
+	if (options.primitive_type == RE::Mesh::Primitive::Type::TRIANGLELIST) {
 		pipelineCreateInfo.depth_stencil_state = {
 			.compare_op = SDL_GPU_COMPAREOP_LESS,
 			.write_mask = 0xFF,
@@ -144,14 +144,17 @@ handle::Pipeline createPipeline(const data::PipelineOptions &options) {
 
 	SDL_GPUGraphicsPipeline *gpu_handle =
 			SDL_CreateGPUGraphicsPipeline(m_GPU_device, &pipelineCreateInfo);
-	handle::Pipeline pipeline_handle =
+	RE::Pipeline::Handle pipeline_handle =
 			pipeline_storage.insert({ .gpu_handle = gpu_handle, .options = options });
 	pipeline_cache[options] = pipeline_handle;
 	return pipeline_handle;
 }
 
-SDL_GPUGraphicsPipeline *getPipelineGPUHandle(handle::Pipeline pipeline) {
+SDL_GPUGraphicsPipeline *getPipelineGPUHandle(RE::Pipeline::Handle pipeline) {
 	SDL_assert(PipelineStorageType::isValid(pipeline));
 	return pipeline_storage.get(pipeline).gpu_handle;
+}
+bool isValid(RE::Pipeline::Handle pipeline){
+	return PipelineStorageType::isValid(pipeline);
 }
 }; // namespace PS

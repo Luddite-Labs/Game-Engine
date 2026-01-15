@@ -7,57 +7,57 @@ namespace {
 SDL_GPUDevice *m_GPU_device;
 MeshStorageType mesh_storage;
 uint32_t max_stride = sizeof(glm::vec3);
-std::unordered_map<data::VertAttributeIndex, uint32_t> stride_map = {
-	{ data::VertAttributeIndex::POSITION, sizeof(glm::vec3) },
-	{ data::VertAttributeIndex::NORMAL, sizeof(glm::vec3) },
-	{ data::VertAttributeIndex::TANGENT, sizeof(glm::vec3) },
-	{ data::VertAttributeIndex::COLOR, sizeof(glm::vec3) },
-	{ data::VertAttributeIndex::UV, sizeof(glm::vec2) },
-	{ data::VertAttributeIndex::INDEX, sizeof(uint16_t) },
+std::unordered_map<RE::Vertex::AttributeIndex, uint32_t> stride_map = {
+	{ RE::Vertex::AttributeIndex::POSITION, sizeof(glm::vec3) },
+	{ RE::Vertex::AttributeIndex::NORMAL, sizeof(glm::vec3) },
+	{ RE::Vertex::AttributeIndex::TANGENT, sizeof(glm::vec3) },
+	{ RE::Vertex::AttributeIndex::COLOR, sizeof(glm::vec3) },
+	{ RE::Vertex::AttributeIndex::UV, sizeof(glm::vec2) },
+	{ RE::Vertex::AttributeIndex::INDEX, sizeof(uint16_t) },
 };
-std::unordered_map<data::VertAttributeIndex, data::VertAttributes> attr_index_map = {
-	{ data::VertAttributeIndex::POSITION, data::VertAttributes::POSITION },
-	{ data::VertAttributeIndex::NORMAL, data::VertAttributes::NORMAL },
-	{ data::VertAttributeIndex::TANGENT, data::VertAttributes::TANGENT },
-	{ data::VertAttributeIndex::COLOR, data::VertAttributes::COLOR },
-	{ data::VertAttributeIndex::UV, data::VertAttributes::UV },
-	{ data::VertAttributeIndex::INDEX, data::VertAttributes::INDEX },
-};
-
-std::unordered_map<data::VertAttributes, const char *> vert_attr_define_map = {
-	{ data::VertAttributes::POSITION, "POSITION_USED" },
-	{ data::VertAttributes::NORMAL, "NORMAL_USED" },
-	{ data::VertAttributes::TANGENT, "TANGENT_USED" },
-	{ data::VertAttributes::COLOR, "COLOR_USED" },
-	{ data::VertAttributes::UV, "UV_USED" },
-	{ data::VertAttributes::INDEX, "INDEX_USED" },
+std::unordered_map<RE::Vertex::AttributeIndex, RE::Vertex::Attributes> attr_index_map = {
+	{ RE::Vertex::AttributeIndex::POSITION, RE::Vertex::Attributes::POSITION },
+	{ RE::Vertex::AttributeIndex::NORMAL, RE::Vertex::Attributes::NORMAL },
+	{ RE::Vertex::AttributeIndex::TANGENT, RE::Vertex::Attributes::TANGENT },
+	{ RE::Vertex::AttributeIndex::COLOR, RE::Vertex::Attributes::COLOR },
+	{ RE::Vertex::AttributeIndex::UV, RE::Vertex::Attributes::UV },
+	{ RE::Vertex::AttributeIndex::INDEX, RE::Vertex::Attributes::INDEX },
 };
 
-std::unordered_map<data::MaterialOptions, const char *> frag_option_define_map = {
-	{ data::MaterialOptions::COLOR_TEXTURE, "COLOR_TEXTURE_USED" },
-	{ data::MaterialOptions::EMISSIVE_TEXTURE, "EMISSIVE_TEXTURE_USED" },
-	{ data::MaterialOptions::NORMAL_TEXTURE, "NORMAL_TEXTURE_USED" },
-	{ data::MaterialOptions::METALLIC_ROUGHNESS_TEXTURE, "METALLIC_ROUGHNESS_TEXTURE_USED" },
-	{ data::MaterialOptions::OCCLUSION_TEXTURE, "OCCLUSION_TEXTURE_USED" },
-	{ data::MaterialOptions::COLOR_FACTOR_USED, "COLOR_FACTOR_USED" },
+std::unordered_map<RE::Vertex::Attributes, const char *> vert_attr_define_map = {
+	{ RE::Vertex::Attributes::POSITION, "POSITION_USED" },
+	{ RE::Vertex::Attributes::NORMAL, "NORMAL_USED" },
+	{ RE::Vertex::Attributes::TANGENT, "TANGENT_USED" },
+	{ RE::Vertex::Attributes::COLOR, "COLOR_USED" },
+	{ RE::Vertex::Attributes::UV, "UV_USED" },
+	{ RE::Vertex::Attributes::INDEX, "INDEX_USED" },
 };
 
-void loadTriangleList(data::PrimitiveData &primitive_data, data::Primitive &primitive, SDL_GPUTransferBuffer *transfer_buffer_handle, SDL_GPUCopyPass *copy_pass) {
+std::unordered_map<RE::Material::Options, const char *> frag_option_define_map = {
+	{ RE::Material::Options::COLOR_TEXTURE, "COLOR_TEXTURE_USED" },
+	{ RE::Material::Options::EMISSIVE_TEXTURE, "EMISSIVE_TEXTURE_USED" },
+	{ RE::Material::Options::NORMAL_TEXTURE, "NORMAL_TEXTURE_USED" },
+	{ RE::Material::Options::METALLIC_ROUGHNESS_TEXTURE, "METALLIC_ROUGHNESS_TEXTURE_USED" },
+	{ RE::Material::Options::OCCLUSION_TEXTURE, "OCCLUSION_TEXTURE_USED" },
+	{ RE::Material::Options::COLOR_FACTOR_USED, "COLOR_FACTOR_USED" },
+};
+
+void loadTriangleList(RE::Mesh::Primitive::Arg &primitive_data, RE::Mesh::Primitive::Data &primitive, SDL_GPUTransferBuffer *transfer_buffer_handle, SDL_GPUCopyPass *copy_pass) {
 	//! make no side effect
 	primitive.vert_count = primitive_data.vert_count;
 	primitive.index_count = primitive_data.index_count;
 	primitive.material = primitive_data.material; //! add ref counting
-	data::VertAttributes primitive_vert_attrs = data::VertAttributes::NONE;
-	std::vector<data::ShaderDefinition> vert_shader_defines;
-	for (uint32_t i = 0; i < static_cast<uint32_t>(data::VertAttributeIndex::MAX); i++) {
+	RE::Vertex::Attributes primitive_vert_attrs = RE::Vertex::Attributes::NONE;
+	std::vector<RE::Shader::Definition> vert_shader_defines;
+	for (uint32_t i = 0; i < static_cast<uint32_t>(RE::Vertex::AttributeIndex::MAX); i++) {
 		if (primitive_data.attrs_data[i].get() != nullptr) {
-			data::VertAttributeIndex vert_attr_index = static_cast<data::VertAttributeIndex>(i);
-			data::VertAttributes vert_attr = attr_index_map[vert_attr_index];
+			RE::Vertex::AttributeIndex vert_attr_index = static_cast<RE::Vertex::AttributeIndex>(i);
+			RE::Vertex::Attributes vert_attr = attr_index_map[vert_attr_index];
 			vert_shader_defines.push_back({ .name = vert_attr_define_map[vert_attr],
 					.value = nullptr });
 			primitive_vert_attrs |= vert_attr;
 			const uint32_t stride = stride_map[vert_attr_index];
-			const uint32_t count = (vert_attr_index == data::VertAttributeIndex::INDEX) ? primitive_data.index_count : primitive_data.vert_count;
+			const uint32_t count = (vert_attr_index == RE::Vertex::AttributeIndex::INDEX) ? primitive_data.index_count : primitive_data.vert_count;
 
 			primitive.attrs_data[i].cpu_buffer.swap(primitive_data.attrs_data[i]);
 
@@ -84,8 +84,8 @@ void loadTriangleList(data::PrimitiveData &primitive_data, data::Primitive &prim
 		}
 	}
 	auto material_options = MaS::getMaterialOptions(primitive.material);
-	data::PipelineOptions options = {
-		.color_target_format = TextureFormat::R8G8B8A8_UNORM,
+	RE::Pipeline::Options options = {
+		.color_target_format = RE::Texture::Format::R8G8B8A8_UNORM,
 		.primitive_type = primitive.type,
 		.vert_attrs = primitive_vert_attrs,
 		.material_options = material_options,
@@ -96,24 +96,24 @@ void loadTriangleList(data::PrimitiveData &primitive_data, data::Primitive &prim
 	options.vert_shader = ShS::createShader(
 			GAME_ENGINE_DEFAULT_SHADER_DIR "/base.vert.hlsl", vert_shader_defines);
 
-	std::vector<data::ShaderDefinition> frag_shader_defines;
-	if ((material_options & data::MaterialOptions::COLOR_TEXTURE) == data::MaterialOptions::COLOR_TEXTURE) {
-		frag_shader_defines.push_back({ .name = frag_option_define_map[data::MaterialOptions::COLOR_TEXTURE], .value = nullptr });
+	std::vector<RE::Shader::Definition> frag_shader_defines;
+	if ((material_options & RE::Material::Options::COLOR_TEXTURE) == RE::Material::Options::COLOR_TEXTURE) {
+		frag_shader_defines.push_back({ .name = frag_option_define_map[RE::Material::Options::COLOR_TEXTURE], .value = nullptr });
 	}
-	if ((material_options & data::MaterialOptions::EMISSIVE_TEXTURE) == data::MaterialOptions::EMISSIVE_TEXTURE) {
-		frag_shader_defines.push_back({ .name = frag_option_define_map[data::MaterialOptions::EMISSIVE_TEXTURE], .value = nullptr });
+	if ((material_options & RE::Material::Options::EMISSIVE_TEXTURE) == RE::Material::Options::EMISSIVE_TEXTURE) {
+		frag_shader_defines.push_back({ .name = frag_option_define_map[RE::Material::Options::EMISSIVE_TEXTURE], .value = nullptr });
 	}
-	if ((material_options & data::MaterialOptions::NORMAL_TEXTURE) == data::MaterialOptions::NORMAL_TEXTURE) {
-		frag_shader_defines.push_back({ .name = frag_option_define_map[data::MaterialOptions::NORMAL_TEXTURE], .value = nullptr });
+	if ((material_options & RE::Material::Options::NORMAL_TEXTURE) == RE::Material::Options::NORMAL_TEXTURE) {
+		frag_shader_defines.push_back({ .name = frag_option_define_map[RE::Material::Options::NORMAL_TEXTURE], .value = nullptr });
 	}
-	if ((material_options & data::MaterialOptions::METALLIC_ROUGHNESS_TEXTURE) == data::MaterialOptions::METALLIC_ROUGHNESS_TEXTURE) {
-		frag_shader_defines.push_back({ .name = frag_option_define_map[data::MaterialOptions::METALLIC_ROUGHNESS_TEXTURE], .value = nullptr });
+	if ((material_options & RE::Material::Options::METALLIC_ROUGHNESS_TEXTURE) == RE::Material::Options::METALLIC_ROUGHNESS_TEXTURE) {
+		frag_shader_defines.push_back({ .name = frag_option_define_map[RE::Material::Options::METALLIC_ROUGHNESS_TEXTURE], .value = nullptr });
 	}
-	if ((material_options & data::MaterialOptions::OCCLUSION_TEXTURE) == data::MaterialOptions::OCCLUSION_TEXTURE) {
-		frag_shader_defines.push_back({ .name = frag_option_define_map[data::MaterialOptions::OCCLUSION_TEXTURE], .value = nullptr });
+	if ((material_options & RE::Material::Options::OCCLUSION_TEXTURE) == RE::Material::Options::OCCLUSION_TEXTURE) {
+		frag_shader_defines.push_back({ .name = frag_option_define_map[RE::Material::Options::OCCLUSION_TEXTURE], .value = nullptr });
 	}
-	if ((material_options & data::MaterialOptions::COLOR_FACTOR_USED) == data::MaterialOptions::COLOR_FACTOR_USED) {
-		frag_shader_defines.push_back({ .name = frag_option_define_map[data::MaterialOptions::COLOR_FACTOR_USED], .value = nullptr });
+	if ((material_options & RE::Material::Options::COLOR_FACTOR_USED) == RE::Material::Options::COLOR_FACTOR_USED) {
+		frag_shader_defines.push_back({ .name = frag_option_define_map[RE::Material::Options::COLOR_FACTOR_USED], .value = nullptr });
 	}
 	options.frag_shader =
 			ShS::createShader(GAME_ENGINE_DEFAULT_SHADER_DIR "/base.frag.hlsl", frag_shader_defines);
@@ -132,10 +132,10 @@ void init(SDL_GPUDevice *device) {
 void destroy() {
 }
 
-handle::Mesh
-createMesh(data::MeshData &mesh_data) {
-	data::VertAttributes vert_attrs = data::VertAttributes::NONE;
-	handle::Mesh mesh_handle = mesh_storage.insert({});
+RE::Mesh::Handle
+createMesh(RE::Mesh::Arg &mesh_data) {
+	RE::Vertex::Attributes vert_attrs = RE::Vertex::Attributes::NONE;
+	RE::Mesh::Handle mesh_handle = mesh_storage.insert({});
 	auto &mesh = mesh_storage.get(mesh_handle);
 
 	uint32_t max_vert_count = 0;
@@ -160,7 +160,7 @@ createMesh(data::MeshData &mesh_data) {
 
 	for (auto &primitive : mesh_data.primitives) {
 		switch (primitive.type) {
-			case data::PrimitiveType::TRIANGLELIST: {
+			case RE::Mesh::Primitive::Type::TRIANGLELIST: {
 				mesh.primitives.push_back({});
 				loadTriangleList(primitive, mesh.primitives.back(), transfer_buffer_handle, copy_pass);
 			} break;
@@ -175,24 +175,27 @@ createMesh(data::MeshData &mesh_data) {
 	return mesh_handle;
 }
 
-void refMesh(handle::Mesh mesh) {
+void refMesh(RE::Mesh::Handle mesh) {
 	mesh_storage.ref(mesh);
 }
-void destroyMesh(handle::Mesh mesh) {
+void destroyMesh(RE::Mesh::Handle mesh) {
 	mesh_storage.erase(mesh);
 } //! delete mesh
 
-AABB getMeshAABB(handle::Mesh mesh) {
+RE::Mesh::AABB getMeshAABB(RE::Mesh::Handle mesh) {
 	return mesh_storage.get(mesh).aabb;
 }
-const data::Primitive &getPrimitiveData(handle::Mesh mesh, uint32_t primitive_index) {
+const RE::Mesh::Primitive::Data &getPrimitiveData(RE::Mesh::Handle mesh, uint32_t primitive_index) {
 	return mesh_storage.get(mesh).primitives[primitive_index];
 }
-void setMeshAABB(handle::Mesh mesh, AABB aabb) {
+void setMeshAABB(RE::Mesh::Handle mesh, RE::Mesh::AABB aabb) {
 	mesh_storage.get(mesh).aabb = aabb;
 	mesh_storage.setIsEdited(mesh);
 }
-const std::vector<data::Primitive> &getMeshPrimitives(handle::Mesh mesh) {
+const std::vector<RE::Mesh::Primitive::Data> &getMeshPrimitives(RE::Mesh::Handle mesh) {
 	return mesh_storage.get(mesh).primitives;
+}
+bool isValid(RE::Mesh::Handle mesh){
+	return MeshStorageType::isValid(mesh);
 }
 }; // namespace MS
