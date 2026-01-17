@@ -9,10 +9,16 @@
 #include <glm/vec4.hpp>
 #include <memory>
 
-#define HANDLE()             \
-	struct Handle {          \
-		uint32_t slot_index; \
-		uint32_t generation; \
+#define HANDLE()                                                                              \
+	struct Handle {                                                                           \
+		uint32_t slot_index;                                                                  \
+		uint32_t generation;                                                                  \
+		bool operator==(const Handle &rhs) const {                                            \
+			return this->slot_index == rhs.slot_index and this->generation == rhs.generation; \
+		}                                                                                     \
+		bool operator!=(const Handle &rhs) const {                                            \
+			return !(*this == rhs);                                                           \
+		}                                                                                     \
 	};
 
 namespace RE {
@@ -119,7 +125,7 @@ public:
 namespace Pipeline {
 HANDLE();
 };
-namespace Material{
+namespace Material {
 HANDLE();
 };
 namespace Mesh {

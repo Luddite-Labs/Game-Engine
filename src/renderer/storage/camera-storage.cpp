@@ -107,7 +107,7 @@ void setCameraIsOrthogonal(RE::Camera::Handle camera, bool is_orthogonal) {
 	camera_data.is_orthogonal = is_orthogonal;
 	camera_storage.setIsEdited(camera);
 }
-bool isValid(RE::Camera::Handle camera){
-	return CameraStorageType::isValid(camera);
+bool isValid(RE::Camera::Handle camera) {
+	return camera_storage.isValid(camera);
 }
 }; // namespace CS

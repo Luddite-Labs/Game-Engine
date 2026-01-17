@@ -1,5 +1,3 @@
-#pragma once
-
 #include <renderer/storage/shader-storage.hpp>
 
 namespace {
@@ -94,6 +92,6 @@ SDL_GPUShader *getShaderGPUHandle(RE::Shader::Handle shader) {
 	return shader_storage.get(shader).gpu_handle;
 }
 bool isValid(RE::Shader::Handle shader){
-	return ShaderStorageType::isValid(shader);
+	return shader_storage.isValid(shader);
 }
 }; // namespace ShS

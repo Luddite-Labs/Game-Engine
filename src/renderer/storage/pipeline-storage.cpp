@@ -111,8 +111,8 @@ RE::Pipeline::Handle createPipeline(const RE::Pipeline::Options &options) {
 	}
 	auto vert_shader = options.vert_shader;
 	auto frag_shader = options.frag_shader;
-	SDL_assert(ShaderStorageType::isValid(vert_shader));
-	SDL_assert(ShaderStorageType::isValid(frag_shader));
+	SDL_assert(ShS::isValid(vert_shader));
+	SDL_assert(ShS::isValid(frag_shader));
 	SDL_GPUGraphicsPipelineCreateInfo pipelineCreateInfo{};
 	pipelineCreateInfo.vertex_shader =
 			ShS::getShaderGPUHandle(vert_shader);
@@ -151,10 +151,10 @@ RE::Pipeline::Handle createPipeline(const RE::Pipeline::Options &options) {
 }
 
 SDL_GPUGraphicsPipeline *getPipelineGPUHandle(RE::Pipeline::Handle pipeline) {
-	SDL_assert(PipelineStorageType::isValid(pipeline));
+	SDL_assert(pipeline_storage.isValid(pipeline));
 	return pipeline_storage.get(pipeline).gpu_handle;
 }
 bool isValid(RE::Pipeline::Handle pipeline){
-	return PipelineStorageType::isValid(pipeline);
+	return pipeline_storage.isValid(pipeline);
 }
 }; // namespace PS

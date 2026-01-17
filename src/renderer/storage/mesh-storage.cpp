@@ -46,7 +46,8 @@ void loadTriangleList(RE::Mesh::Primitive::Arg &primitive_data, RE::Mesh::Primit
 	//! make no side effect
 	primitive.vert_count = primitive_data.vert_count;
 	primitive.index_count = primitive_data.index_count;
-	primitive.material = primitive_data.material; //! add ref counting
+	primitive.material = primitive_data.material; 
+	MaS::refMaterial(primitive.material);
 	RE::Vertex::Attributes primitive_vert_attrs = RE::Vertex::Attributes::NONE;
 	std::vector<RE::Shader::Definition> vert_shader_defines;
 	for (uint32_t i = 0; i < static_cast<uint32_t>(RE::Vertex::AttributeIndex::MAX); i++) {
@@ -196,6 +197,6 @@ const std::vector<RE::Mesh::Primitive::Data> &getMeshPrimitives(RE::Mesh::Handle
 	return mesh_storage.get(mesh).primitives;
 }
 bool isValid(RE::Mesh::Handle mesh){
-	return MeshStorageType::isValid(mesh);
+	return mesh_storage.isValid(mesh);
 }
 }; // namespace MS

@@ -3,6 +3,7 @@ cmake_minimum_required(VERSION 3.16)
 option(GAME_ENGINE_DEBUG_MODE "Enable debug mode" ON)
 set(GAME_ENGINE_DEFAULT_SHADER_DIR "${CMAKE_SOURCE_DIR}/src/renderer/shaders")
 set(GAME_ENGINE_DEFAULT_DATA_DIR "${CMAKE_BINARY_DIR}/../data/")
+set(GAME_ENGINE_BUILD_DIR "${CMAKE_BINARY_DIR}/")
 
 # set the output directory for built objects.
 # This makes sure that the dynamic library goes into the build directory automatically.
@@ -14,7 +15,6 @@ set(CMAKE_INSTALL_PREFIX "${CMAKE_BINARY_DIR}" CACHE INTERNAL "")
 
 # Declare the project
 project(Game-Engine)
-
 
 if (APPLE OR EMSCRIPTEN)
     set(BUILD_SHARED_LIBS OFF CACHE INTERNAL "")    # Disable shared builds on platforms where it does not make sense to use them
@@ -35,10 +35,13 @@ endif()
 configure_file(${CMAKE_SOURCE_DIR}/.editorconfig .editorconfig COPYONLY)
 
 file(GLOB IMGUI_LIB_FILES external/imgui/*)
+file(GLOB IMPLOT_LIB_FILES external/implot/*)
 file( GLOB_RECURSE SOURCE_FILES src/* )
+list(FILTER SOURCE_FILES EXCLUDE REGEX ".*\\.hlsl$")
 target_sources(${EXECUTABLE_NAME} 
     PRIVATE ${SOURCE_FILES}
     ${IMGUI_LIB_FILES}
+    ${IMPLOT_LIB_FILES}
     external/imgui/backends/imgui_impl_sdlgpu3.cpp
     external/imgui/backends/imgui_impl_sdl3.cpp
 )
@@ -47,12 +50,14 @@ target_include_directories( ${EXECUTABLE_NAME}
     PUBLIC ${CMAKE_BINARY_DIR}/
     PRIVATE external/soa_vector/
     PRIVATE external/imgui/
-    PRIVATE external/stb
+    PRIVATE external/stb/
+    PRIVATE external/implot/
 )
 target_compile_definitions( ${EXECUTABLE_NAME}
 	PRIVATE GAME_ENGINE_DEBUG_MODE
     PRIVATE -DGAME_ENGINE_DEFAULT_SHADER_DIR="${GAME_ENGINE_DEFAULT_SHADER_DIR}"
     PRIVATE -DGAME_ENGINE_DEFAULT_DATA_DIR="${GAME_ENGINE_DEFAULT_DATA_DIR}"
+    PRIVATE -DGAME_ENGINE_BUILD_DIR="${GAME_ENGINE_BUILD_DIR}"
 )
 
 include(FetchContent)
@@ -72,6 +77,11 @@ target_compile_definitions(${EXECUTABLE_NAME}
 add_subdirectory( external/glm )
 add_subdirectory( external/entt )
 add_subdirectory( external/fastgltf )
+
+add_custom_command(TARGET ${EXECUTABLE_NAME} POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        "${CMAKE_SOURCE_DIR}/lib"
+        $<TARGET_FILE_DIR:${EXECUTABLE_NAME}>)
 
 # What is iosLaunchScreen.storyboard? This file describes what Apple's mobile platforms
 # should show the user while the application is starting up. If you don't include one,
@@ -100,7 +110,6 @@ add_subdirectory(external/SDL EXCLUDE_FROM_ALL)
 set(SDLTTF_VENDORED ON) # tell SDL_ttf to build its own dependencies
 add_subdirectory(external/SDL_ttf EXCLUDE_FROM_ALL)	
 
-set(SPIRV_BUILD_TESTS OFF)
 set(SDLSHADERCROSS_VENDORED ON)
 add_subdirectory(external/SDL_shadercross EXCLUDE_FROM_ALL)	
 
@@ -225,6 +234,7 @@ target_include_directories(tests
 target_link_libraries(
   tests
   GTest::gtest_main
+  glm
 )
 
 include(GoogleTest)

@@ -82,10 +82,10 @@ void setSamplerVAddressing(RE::Sampler::Handle sampler,
 	sampler_storage.setIsEdited(sampler);
 }
 SDL_GPUSampler *getSamplerGPUHandle(RE::Sampler::Handle sampler) {
-	SDL_assert(SamplerStorageType::isValid(sampler));
+	SDL_assert(sampler_storage.isValid(sampler));
 	return sampler_storage.get(sampler).gpu_handle;
 }
 bool isValid(RE::Sampler::Handle sampler){
-	return SamplerStorageType::isValid(sampler);
+	return sampler_storage.isValid(sampler);
 }
 }; // namespace SaS

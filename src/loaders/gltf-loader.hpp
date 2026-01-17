@@ -251,6 +251,9 @@ loadMeshes(const fastgltf::Asset &asset, const std::vector<RE::Material::Shared>
 			if (primitive.materialIndex.has_value()) {
 				prim_data.material = materials[primitive.materialIndex.value()].handle;
 			}
+			else {
+				prim_data.material = {0,0};
+			}
 			// load indexes
 			{
 				const fastgltf::Accessor &indexaccessor =
@@ -356,7 +359,7 @@ loadCameras(const fastgltf::Asset &asset) {
 }
 
 void load(std::string file_path) {
-	std::string gltf_path = std::filesystem::path(file_path).parent_path();
+	std::string gltf_path = std::filesystem::path(file_path).parent_path().string();
 	auto scene_manager = SceneManager::getSingleton();
 
 	fastgltf::Extensions extensions;

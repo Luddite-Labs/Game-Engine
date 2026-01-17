@@ -31,3 +31,9 @@
 [submodule "external/soa_vector"]
 	path = external/soa_vector
 	url = https://github.com/Dwarfobserver/soa_vector/
+[submodule "external/ImGuizmo"]
+	path = external/ImGuizmo
+	url = https://github.com/CedricGuillemet/ImGuizmo
+[submodule "external/implot"]
+	path = external/implot
+	url = https://github.com/epezent/implot

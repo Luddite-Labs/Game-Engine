@@ -126,6 +126,6 @@ RE::Material::Factors getMaterialFactors(RE::Material::Handle material) {
 	return material_storage.get(material).factors;
 }
 bool isValid(RE::Material::Handle material){
-	return MaterialStorageType::isValid(material);
+	return material_storage.isValid(material);
 }
 }; // namespace MaS

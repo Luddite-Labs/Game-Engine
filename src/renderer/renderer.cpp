@@ -48,6 +48,7 @@ struct RendererData {
 	RE::Texture::Handle dummy_texture;
 	RE::Texture::Handle depth_texture;
 	RE::Sampler::Handle dummy_sampler;
+	RE::Material::Handle dummy_material;
 };
 
 SDL_Window *m_window = nullptr;
@@ -70,7 +71,7 @@ glm::mat4x4 getProjectionMatrix(const RE::Camera::Handle &camera) {
 void regenerateDepthTexture(
 		uint32_t width,
 		uint32_t height) {
-	if (TextureStorageType::isValid(m_renderer_data.depth_texture)) {
+	if (TS::isValid(m_renderer_data.depth_texture)) {
 		TS::destroyTexture(m_renderer_data.depth_texture);
 	}
 	m_renderer_data.depth_texture = TS::createTexture(width, height,
@@ -109,6 +110,7 @@ void init() {
 	m_renderer_data.depth_texture = TS::createTexture(1, 1,
 			RE::Texture::UsageFlags::SAMPLER | RE::Texture::UsageFlags::DEPTH_STENCIL_TARGET,
 			RE::Texture::Format::D16_UNORM);
+	m_renderer_data.dummy_material = MaS::createMaterial();
 }
 
 void destroy() {
@@ -137,7 +139,7 @@ SDL_GPUTextureSamplerBinding getSamplerBinding(
 		.sampler = SaS::getSamplerGPUHandle(m_renderer_data.dummy_sampler)
 	};
 	RE::Sampler::Handle tex_sampler = TS::getTextureSampler(texture_handle);
-	if (SamplerStorageType::isValid(tex_sampler)) {
+	if (SaS::isValid(tex_sampler)) {
 		binding.sampler = SaS::getSamplerGPUHandle(tex_sampler);
 	}
 	return binding;
@@ -219,42 +221,42 @@ void drawToTexture(const RE::Options &renderer_options,
 			command_buffer, color_target_infos, 1, &depth_stencil_target_info);
 	for (const auto [transform, primitive, pipeline, material] : primitives) {
 		//! group mesh by material
-		if (MaterialStorageType::isValid(primitive->material)) {
+		if (MaS::isValid(primitive->material)) {
 			const auto material_factors = MaS::getMaterialFactors(primitive->material);
 			SDL_PushGPUFragmentUniformData(command_buffer, 0, &material_factors,
 					sizeof(RE::Material::Factors));
 			std::vector<SDL_GPUTextureSamplerBinding> sampler_bindings;
 			sampler_bindings.push_back({ .texture = TS::getTextureGPUHandle(m_renderer_data.dummy_texture),
 					.sampler = SaS::getSamplerGPUHandle(m_renderer_data.dummy_sampler) });
-			if (TextureStorageType::isValid(
+			if (TS::isValid(
 						MaS::getMaterialColorTexture(primitive->material))) {
 				sampler_bindings.back() = getSamplerBinding(
 						MaS::getMaterialColorTexture(primitive->material));
 			}
 			sampler_bindings.push_back({ .texture = TS::getTextureGPUHandle(m_renderer_data.dummy_texture),
 					.sampler = SaS::getSamplerGPUHandle(m_renderer_data.dummy_sampler) });
-			if (TextureStorageType::isValid(
+			if (TS::isValid(
 						MaS::getMaterialNormalTexture(primitive->material))) {
 				sampler_bindings.back() = getSamplerBinding(
 						MaS::getMaterialNormalTexture(primitive->material));
 			}
 			sampler_bindings.push_back({ .texture = TS::getTextureGPUHandle(m_renderer_data.dummy_texture),
 					.sampler = SaS::getSamplerGPUHandle(m_renderer_data.dummy_sampler) });
-			if (TextureStorageType::isValid(
+			if (TS::isValid(
 						MaS::getMaterialEmissiveTexture(primitive->material))) {
 				sampler_bindings.back() = getSamplerBinding(
 						MaS::getMaterialEmissiveTexture(primitive->material));
 			}
 			sampler_bindings.push_back({ .texture = TS::getTextureGPUHandle(m_renderer_data.dummy_texture),
 					.sampler = SaS::getSamplerGPUHandle(m_renderer_data.dummy_sampler) });
-			if (TextureStorageType::isValid(
+			if (TS::isValid(
 						MaS::getMaterialMetallicRoughnessTexture(primitive->material))) {
 				sampler_bindings.back() = getSamplerBinding(
 						MaS::getMaterialMetallicRoughnessTexture(primitive->material));
 			}
 			sampler_bindings.push_back({ .texture = TS::getTextureGPUHandle(m_renderer_data.dummy_texture),
 					.sampler = SaS::getSamplerGPUHandle(m_renderer_data.dummy_sampler) });
-			if (TextureStorageType::isValid(
+			if (TS::isValid(
 						MaS::getMaterialOcclusionTexture(primitive->material))) {
 				sampler_bindings.back() = getSamplerBinding(
 						MaS::getMaterialOcclusionTexture(primitive->material));
@@ -455,6 +457,11 @@ bool isValid(RE::Material::Handle material) {
 // Mesh wrappers (MS)
 namespace Mesh {
 RE::Mesh::Handle create(RE::Mesh::Arg &mesh_data) {
+	for (auto &primitive : mesh_data.primitives) {
+		if (not MaS::isValid(primitive.material)) {
+			primitive.material = m_renderer_data.dummy_material;
+		}
+	}
 	return MS::createMesh(mesh_data);
 }
 void ref(RE::Mesh::Handle mesh) {

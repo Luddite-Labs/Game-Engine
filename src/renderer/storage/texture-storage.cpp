@@ -111,10 +111,10 @@ void uploadBufferToTexture(RE::Texture::Handle texture,
 	SDL_ReleaseGPUTransferBuffer(m_GPU_device, transfer_buffer);
 }
 SDL_GPUTexture *getTextureGPUHandle(RE::Texture::Handle texture) {
-	SDL_assert(TextureStorageType::isValid(texture));
+	SDL_assert(texture_storage.isValid(texture));
 	return texture_storage.get(texture).gpu_handle;
 }
 bool isValid(RE::Texture::Handle texture){
-	return TextureStorageType::isValid(texture);
+	return texture_storage.isValid(texture);
 }
 }; // namespace TS

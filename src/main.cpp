@@ -132,8 +132,7 @@ SDL_AppResult SDL_AppInit(void **app_state, int argc, char *argv[]) {
 	auto &camera_transform = static_cast<AppContext *>(*app_state)->camera_transform;
 	camera_transform.translate = { 10, 10, 10 };
 	auto dir = glm::normalize(camera_transform.translate);
-	camera_transform.rotate = { 1, 0, 0, 0 };
-	//glm::quatLookAt(dir, glm::vec3{ 0, 1, 0 });
+	camera_transform.rotate = glm::quatLookAt(-dir, glm::vec3{ 0, 1, 0 });
 	camera_transform.scale = glm::vec3{ 1, 1, 1 };
 	// load(GAME_ENGINE_DEFAULT_DATA_DIR "scenes/glTF-Sample-Models/2.0/Box/glTF/Box.gltf");
 	// load(GAME_ENGINE_DEFAULT_DATA_DIR "scenes/glTF-Sample-Models/2.0/Sponza/glTF/Sponza.gltf");
@@ -142,7 +141,8 @@ SDL_AppResult SDL_AppInit(void **app_state, int argc, char *argv[]) {
 	// load(GAME_ENGINE_DEFAULT_DATA_DIR "scenes/glTF-Sample-Models/2.0/BoxVertexColors/glTF/BoxVertexColors.gltf");
 	// load(GAME_ENGINE_DEFAULT_DATA_DIR "scenes/glTF-Sample-Models/2.0/BoxTextured/glTF/BoxTextured.gltf");
 	// load(GAME_ENGINE_DEFAULT_DATA_DIR "scenes/glTF-Sample-Models/2.0/BoxTexturedNonPowerOfTwo/glTF/BoxTexturedNonPowerOfTwo.gltf");
-	load(GAME_ENGINE_DEFAULT_DATA_DIR "scenes/orient/scene.gltf");
+	load(GAME_ENGINE_DEFAULT_DATA_DIR "scenes/ftm/scene.gltf");
+	util::setFileLogging(GAME_ENGINE_BUILD_DIR "debug.log", true);
 	LOG_INFO("Application started successfully!");
 
 	return SDL_APP_CONTINUE;
@@ -182,7 +182,7 @@ SDL_AppResult SDL_AppIterate(void *app_state) {
 		RE::drawToTexture(app->renderer_options, app->render_target.handle,
 				app->scene_camera.handle,
 				getTransformMatFromTRS(app->camera_transform), draw_commands);
-		content_region = drawRenderResult(scene, app->render_target.handle);
+		content_region = drawRenderResult(scene, app->render_target);
 		RE::Camera::setAspectRatio(app->scene_camera.handle, content_region.x / content_region.y);
 	}
 	handleEditorCameraMovement(app->camera_transform, app->scene_camera, content_region);
@@ -194,7 +194,7 @@ SDL_AppResult SDL_AppIterate(void *app_state) {
 
 void SDL_AppQuit(void *app_state, SDL_AppResult result) {
 	auto *app = reinterpret_cast<AppContext *>(app_state);
-
+	LOG_INFO("Application destruction started!");
 	if (app) {
 		app->render_target.reset();
 		SceneManager::destroy();

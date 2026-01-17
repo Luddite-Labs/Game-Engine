@@ -64,6 +64,8 @@ void handleEditorCameraMovement(Transform &trs, RE::Camera::Shared camera, glm::
 	}
 }
 
+SDL_DialogFileFilter file_filters = { .name = "GLTF File",
+					.pattern = "gltf" };
 void drawToolBar(SDL_Window *window) {
 	ImGuiViewport *viewport = ImGui::GetMainViewport();
 	ImGui::SetNextWindowPos(ImVec2(viewport->Pos.x, viewport->Pos.y + 25));
@@ -102,8 +104,6 @@ void drawToolBar(SDL_Window *window) {
 	if (ImGui::BeginMenuBar()) {
 		if (ImGui::BeginMenu("File")) {
 			if (ImGui::MenuItem("Load scenes from gltf")) {
-				SDL_DialogFileFilter file_filters = { .name = "GLTF File",
-					.pattern = "gltf" };
 				SDL_ShowOpenFileDialog(loadGLTFCallback, nullptr, window, &file_filters,
 						1, nullptr, false);
 			}
