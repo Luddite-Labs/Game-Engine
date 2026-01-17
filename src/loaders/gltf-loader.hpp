@@ -362,7 +362,7 @@ void load(std::string file_path) {
 	std::string gltf_path = std::filesystem::path(file_path).parent_path().string();
 	auto scene_manager = SceneManager::getSingleton();
 
-	fastgltf::Extensions extensions;
+	fastgltf::Extensions extensions{};
 	fastgltf::Parser parser(extensions);
 	auto gltfFile = fastgltf::GltfDataBuffer::FromPath(file_path);
 	auto asset = parser.loadGltf(gltfFile.get(), gltf_path,

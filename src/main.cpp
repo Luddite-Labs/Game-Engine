@@ -141,7 +141,7 @@ SDL_AppResult SDL_AppInit(void **app_state, int argc, char *argv[]) {
 	// load(GAME_ENGINE_DEFAULT_DATA_DIR "scenes/glTF-Sample-Models/2.0/BoxVertexColors/glTF/BoxVertexColors.gltf");
 	// load(GAME_ENGINE_DEFAULT_DATA_DIR "scenes/glTF-Sample-Models/2.0/BoxTextured/glTF/BoxTextured.gltf");
 	// load(GAME_ENGINE_DEFAULT_DATA_DIR "scenes/glTF-Sample-Models/2.0/BoxTexturedNonPowerOfTwo/glTF/BoxTexturedNonPowerOfTwo.gltf");
-	load(GAME_ENGINE_DEFAULT_DATA_DIR "scenes/ftm/scene.gltf");
+	//load(GAME_ENGINE_DEFAULT_DATA_DIR "scenes/ftm/scene.gltf");
 	util::setFileLogging(GAME_ENGINE_BUILD_DIR "debug.log", true);
 	LOG_INFO("Application started successfully!");
 
@@ -170,7 +170,7 @@ SDL_AppResult SDL_AppIterate(void *app_state) {
 
 	UI::getSingleton()->beginFrame();
 	drawToolBar(app->window);
-	glm::vec2 content_region;
+	glm::vec2 content_region{};
 	if (0 <= scene_manager->active_scene_index &&
 			scene_manager->active_scene_index < scene_manager->scenes.size()) {
 		auto &scene = scene_manager->scenes[scene_manager->active_scene_index];

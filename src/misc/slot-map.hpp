@@ -8,6 +8,7 @@
 #include <misc/utils.hpp>
 #include <vector>
 
+#define __PRETTY_FUNCTION__ ""
 #define CHUNK_SIZE 4096
 struct Slot {
 	union {
