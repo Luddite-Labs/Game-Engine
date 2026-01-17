@@ -12,41 +12,41 @@
 #include <renderer/renderer.hpp>
 #include <variant>
 
-#define SHARED()                                 \
-	struct Shared {                              \
-		Handle handle;                           \
-                                                 \
-	public:                                      \
-		Shared() : handle({ 0, 0 }) {            \
-		}                                        \
-		Shared(Handle handle) : handle(handle) { \
-		}                                        \
-		Shared(const Shared &other) {            \
-			/* ref first in case same handle */  \
-			if (other.handle != Handle{ 0, 0 })  \
-				ref(other.handle);               \
-			handle = other.handle;               \
-		}                                        \
-		~Shared() {                              \
-			if (handle != Handle{ 0, 0 })        \
-				destroy(handle);                 \
-		}                                        \
-		void operator=(const Shared &other) {    \
-			/* ref first in case same handle */  \
-			if (other.handle != Handle{ 0, 0 })  \
-				ref(other.handle);               \
-			if (handle != Handle{ 0, 0 })        \
-				destroy(handle);                 \
-			handle = other.handle;               \
-		}                                        \
-		void reset() {                           \
-			if (handle != Handle{ 0, 0 })        \
-				destroy(handle);                 \
-			handle = { 0, 0 };                   \
-		}                                        \
-		bool valid() {                           \
-			return isValid(handle);              \
-		}                                        \
+#define SHARED()                                          \
+	struct Shared {                                       \
+		Handle handle;                                    \
+                                                          \
+	public:                                               \
+		Shared() : handle({ 0, 0 }) {                     \
+		}                                                 \
+		explicit Shared(Handle handle) : handle(handle) { \
+		}                                                 \
+		Shared(const Shared &other) {                     \
+			/* ref first in case same handle */           \
+			if (other.handle != Handle{ 0, 0 })           \
+				ref(other.handle);                        \
+			handle = other.handle;                        \
+		}                                                 \
+		~Shared() {                                       \
+			if (handle != Handle{ 0, 0 })                 \
+				destroy(handle);                          \
+		}                                                 \
+		void operator=(const Shared &other) {             \
+			/* ref first in case same handle */           \
+			if (other.handle != Handle{ 0, 0 })           \
+				ref(other.handle);                        \
+			if (handle != Handle{ 0, 0 })                 \
+				destroy(handle);                          \
+			handle = other.handle;                        \
+		}                                                 \
+		void reset() {                                    \
+			if (handle != Handle{ 0, 0 })                 \
+				destroy(handle);                          \
+			handle = { 0, 0 };                            \
+		}                                                 \
+		bool valid() {                                    \
+			return isValid(handle);                       \
+		}                                                 \
 	};
 
 namespace RE {

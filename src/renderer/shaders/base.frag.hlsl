@@ -31,12 +31,9 @@ SamplerState occlusion_sampler : register(s4, space2);
 Output main(Input input)
 {
     Output output;
-#ifdef COLOR_TEXTURE_USED
-    input.color = color_texture.Sample(color_sampler, input.uv);
-#endif
 #ifdef COLOR_FACTOR_USED
     #ifdef COLOR_TEXTURE_USED
-        input.color = input.color * color_factor;
+        input.color = color_texture.Sample(color_sampler, input.uv) * color_factor;
     #else
         input.color = color_factor;
     #endif

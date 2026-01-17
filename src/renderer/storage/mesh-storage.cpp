@@ -1,7 +1,7 @@
 #include <renderer/storage/material-storage.hpp>
 #include <renderer/storage/mesh-storage.hpp>
-#include <renderer/storage/shader-storage.hpp>
 #include <renderer/storage/pipeline-storage.hpp>
+#include <renderer/storage/shader-storage.hpp>
 
 namespace {
 SDL_GPUDevice *m_GPU_device;
@@ -46,7 +46,7 @@ void loadTriangleList(RE::Mesh::Primitive::Arg &primitive_data, RE::Mesh::Primit
 	//! make no side effect
 	primitive.vert_count = primitive_data.vert_count;
 	primitive.index_count = primitive_data.index_count;
-	primitive.material = primitive_data.material; 
+	primitive.material = primitive_data.material;
 	MaS::refMaterial(primitive.material);
 	RE::Vertex::Attributes primitive_vert_attrs = RE::Vertex::Attributes::NONE;
 	std::vector<RE::Shader::Definition> vert_shader_defines;
@@ -57,7 +57,10 @@ void loadTriangleList(RE::Mesh::Primitive::Arg &primitive_data, RE::Mesh::Primit
 			vert_shader_defines.push_back({ .name = vert_attr_define_map[vert_attr],
 					.value = nullptr });
 			primitive_vert_attrs |= vert_attr;
-			const uint32_t stride = stride_map[vert_attr_index];
+			uint32_t stride = stride_map[vert_attr_index];
+			if (vert_attr_index == RE::Vertex::AttributeIndex::INDEX) {
+				stride = (primitive_data.index_count <= UINT16_MAX) ? sizeof(uint16_t) : sizeof(uint32_t);
+			}
 			const uint32_t count = (vert_attr_index == RE::Vertex::AttributeIndex::INDEX) ? primitive_data.index_count : primitive_data.vert_count;
 
 			primitive.attrs_data[i].cpu_buffer.swap(primitive_data.attrs_data[i]);
@@ -136,9 +139,6 @@ void destroy() {
 RE::Mesh::Handle
 createMesh(RE::Mesh::Arg &mesh_data) {
 	RE::Vertex::Attributes vert_attrs = RE::Vertex::Attributes::NONE;
-	RE::Mesh::Handle mesh_handle = mesh_storage.insert({});
-	auto &mesh = mesh_storage.get(mesh_handle);
-
 	uint32_t max_vert_count = 0;
 	for (const auto &primitive : mesh_data.primitives) {
 		max_vert_count = std::max(max_vert_count, primitive.vert_count);
@@ -148,6 +148,10 @@ createMesh(RE::Mesh::Arg &mesh_data) {
 			0, 0
 		};
 	}
+
+	RE::Mesh::Handle mesh_handle = mesh_storage.insert({});
+	auto &mesh = mesh_storage.get(mesh_handle);
+
 	SDL_GPUCommandBuffer *command_buffer =
 			SDL_AcquireGPUCommandBuffer(m_GPU_device);
 	SDL_GPUCopyPass *copy_pass = SDL_BeginGPUCopyPass(command_buffer);
@@ -196,7 +200,7 @@ void setMeshAABB(RE::Mesh::Handle mesh, RE::Mesh::AABB aabb) {
 const std::vector<RE::Mesh::Primitive::Data> &getMeshPrimitives(RE::Mesh::Handle mesh) {
 	return mesh_storage.get(mesh).primitives;
 }
-bool isValid(RE::Mesh::Handle mesh){
+bool isValid(RE::Mesh::Handle mesh) {
 	return mesh_storage.isValid(mesh);
 }
 }; // namespace MS

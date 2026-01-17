@@ -75,6 +75,13 @@ RE::Pipeline::Handle createPipeline(const RE::Pipeline::Options &options) {
 				.format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3,
 				.offset = 0 });
 	}
+	if ((options.vert_attrs & RE::Vertex::Attributes::COLOR) ==
+			RE::Vertex::Attributes::COLOR) {
+		vert_attrs.push_back({ .location = static_cast<uint8_t>(RE::Vertex::AttributeIndex::COLOR),
+				.buffer_slot = static_cast<uint8_t>(RE::Vertex::AttributeIndex::COLOR),
+				.format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3,
+				.offset = 0 });
+	}
 	if ((options.vert_attrs & RE::Vertex::Attributes::UV) ==
 			RE::Vertex::Attributes::UV) {
 		vert_attrs.push_back({ .location = static_cast<uint8_t>(RE::Vertex::AttributeIndex::UV),

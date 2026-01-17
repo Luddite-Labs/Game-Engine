@@ -56,8 +56,8 @@ enum class Attributes : uint8_t {
 enum class AttributeIndex : uint8_t {
 	POSITION,
 	NORMAL,
-	COLOR,
 	TANGENT,
+	COLOR,
 	UV,
 	INDEX,
 	MAX
@@ -151,13 +151,14 @@ struct Data {
 	uint32_t index_count;
 	RE::Material::Handle material;
 	Data() : type(Type::TRIANGLELIST), attrs_data(), vert_count(0), index_count(0), material() {}
-	Data(const Data &other) : type(other.type), vert_count(other.vert_count), index_count(other.index_count), material(other.material) {
+	Data(const Data &other) : pipeline(other.pipeline),  type(other.type), vert_count(other.vert_count), index_count(other.index_count), material(other.material) {
 		for (uint32_t i = 0; i < static_cast<uint32_t>(Vertex::AttributeIndex::MAX); i++) {
 			attrs_data[i].cpu_buffer.swap(const_cast<Data &>(other).attrs_data[i].cpu_buffer);
 			attrs_data[i].gpu_buffer = other.attrs_data[i].gpu_buffer;
 		}
 	}
 	void operator=(const Data &other) {
+		pipeline = other.pipeline;
 		type = other.type;
 		vert_count = other.vert_count;
 		index_count = other.index_count;

@@ -41,7 +41,7 @@ struct Image {
 loadSamplers(const fastgltf::Asset &asset) {
 	std::vector<RE::Sampler::Shared> samplers;
 	for (const auto &asset_sampler : asset.samplers) {
-		RE::Sampler::Shared sampler = RE::Sampler::create();
+		RE::Sampler::Shared sampler{ RE::Sampler::create() };
 		if (asset_sampler.magFilter.has_value()) {
 			switch (asset_sampler.magFilter.value()) {
 				case fastgltf::Filter::Nearest:
@@ -174,7 +174,7 @@ loadTextures(const fastgltf::Asset &asset,
 	//! use the right format for texture
 	for (auto &asset_texture : asset.textures) {
 		const auto &image = images[asset_texture.imageIndex.value()];
-		RE::Texture::Shared texture = RE::Texture::create(image.width, image.height);
+		RE::Texture::Shared texture{RE::Texture::create(image.width, image.height)};
 		RE::Texture::uploadBuffer(
 				texture.handle, image.buffer, 0,
 				static_cast<size_t>(image.width) *
@@ -194,7 +194,7 @@ loadMaterials(const fastgltf::Asset &asset,
 		const std::vector<RE::Texture::Shared> &textures) {
 	std::vector<RE::Material::Shared> materials;
 	for (const auto &asset_material : asset.materials) {
-		RE::Material::Shared material = RE::Material::create();
+		RE::Material::Shared material{ RE::Material::create()};
 		RE::Material::setColorFactor(material.handle,
 				glm::make_vec4(asset_material.pbrData.baseColorFactor.data()));
 		RE::Material::setEmissiveFactor(material.handle,
@@ -250,22 +250,30 @@ loadMeshes(const fastgltf::Asset &asset, const std::vector<RE::Material::Shared>
 			prim_data.type = RE::Mesh::Primitive::Type::TRIANGLELIST;
 			if (primitive.materialIndex.has_value()) {
 				prim_data.material = materials[primitive.materialIndex.value()].handle;
-			}
-			else {
-				prim_data.material = {0,0};
+			} else {
+				prim_data.material = { 0, 0 };
 			}
 			// load indexes
 			{
 				const fastgltf::Accessor &indexaccessor =
 						asset.accessors[primitive.indicesAccessor.value()];
-				prim_data.attrs_data[static_cast<uint32_t>(RE::Vertex::AttributeIndex::INDEX)] =
-						std::make_unique<uint8_t[]>(indexaccessor.count * sizeof(uint16_t));
 				prim_data.index_count = indexaccessor.count;
-				uint16_t arr_idx = 0;
+				if (prim_data.index_count <= UINT16_MAX) {
+					prim_data.attrs_data[static_cast<uint32_t>(RE::Vertex::AttributeIndex::INDEX)] =
+							std::make_unique<uint8_t[]>(indexaccessor.count * sizeof(uint16_t));
+				} else {
+					prim_data.attrs_data[static_cast<uint32_t>(RE::Vertex::AttributeIndex::INDEX)] =
+							std::make_unique<uint8_t[]>(indexaccessor.count * sizeof(uint32_t));
+				}
+				uint32_t arr_idx = 0;
 				fastgltf::iterateAccessor<uint32_t>(
 						asset, indexaccessor, [&](uint32_t idx) {
-							uint16_t cast_idx = static_cast<uint16_t>(idx);
-							memcpy(prim_data.attrs_data[static_cast<uint32_t>(RE::Vertex::AttributeIndex::INDEX)].get() + (arr_idx * sizeof(uint16_t)), &cast_idx, sizeof(uint16_t));
+							if (prim_data.index_count <= UINT16_MAX) {
+								uint16_t cast_idx = static_cast<uint16_t>(idx);
+								memcpy(prim_data.attrs_data[static_cast<uint32_t>(RE::Vertex::AttributeIndex::INDEX)].get() + (arr_idx * sizeof(uint16_t)), &cast_idx, sizeof(uint16_t));
+							} else {
+								memcpy(prim_data.attrs_data[static_cast<uint32_t>(RE::Vertex::AttributeIndex::INDEX)].get() + (arr_idx * sizeof(uint32_t)), &idx, sizeof(uint32_t));
+							}
 							arr_idx++;
 						});
 			}
@@ -278,7 +286,7 @@ loadMeshes(const fastgltf::Asset &asset, const std::vector<RE::Material::Shared>
 						std::make_unique<uint8_t[]>(posAccessor.count * sizeof(glm::vec3));
 				prim_data.vert_count = posAccessor.count;
 				fastgltf::iterateAccessorWithIndex<glm::vec3>(
-						asset, posAccessor, [&](glm::vec3 v, size_t index) { //! maybe add epsilon to box size 
+						asset, posAccessor, [&](glm::vec3 v, size_t index) { //! maybe add epsilon to box size
 							mesh_data.aabb.min.x = std::min(v.x, mesh_data.aabb.min.x);
 							mesh_data.aabb.min.y = std::min(v.y, mesh_data.aabb.min.y);
 							mesh_data.aabb.min.z = std::min(v.z, mesh_data.aabb.min.z);
@@ -318,9 +326,26 @@ loadMeshes(const fastgltf::Asset &asset, const std::vector<RE::Material::Shared>
 							memcpy(prim_data.attrs_data[static_cast<uint32_t>(RE::Vertex::AttributeIndex::NORMAL)].get() + (index * sizeof(glm::vec3)), glm::value_ptr(v), sizeof(glm::vec3));
 						});
 			}
+
+			// load Color
+			{
+				auto at_it = primitive.findAttribute("COLOR_0");
+				if (at_it != primitive.attributes.end()) {
+					const fastgltf::Accessor &colorAccessor =
+							asset.accessors[at_it->accessorIndex];
+					prim_data.attrs_data[static_cast<uint32_t>(RE::Vertex::AttributeIndex::COLOR)] =
+							std::make_unique<uint8_t[]>(colorAccessor.count * sizeof(glm::vec3));
+					fastgltf::iterateAccessorWithIndex<glm::vec3>(
+							asset, colorAccessor, [&](glm::vec3 v, size_t index) {
+								memcpy(prim_data.attrs_data[static_cast<uint32_t>(RE::Vertex::AttributeIndex::COLOR)].get() + (index * sizeof(glm::vec3)), glm::value_ptr(v), sizeof(glm::vec3));
+							});
+				}
+			}
 		}
-		RE::Mesh::Shared mesh = RE::Mesh::create(mesh_data);
-		meshes.emplace_back(mesh);
+		RE::Mesh::Shared mesh{ RE::Mesh::create(mesh_data)};
+		if (mesh.valid()) {
+			meshes.emplace_back(mesh);
+		}
 	}
 	return std::move(meshes);
 }
@@ -332,7 +357,7 @@ loadCameras(const fastgltf::Asset &asset) {
 		if (std::holds_alternative<fastgltf::Camera::Perspective>(camera.camera)) {
 			auto &camera_data =
 					std::get<fastgltf::Camera::Perspective>(camera.camera);
-			RE::Camera::Shared persp_camera = RE::Camera::create();
+			RE::Camera::Shared persp_camera{ RE::Camera::create()};
 			if (camera_data.aspectRatio.has_value()) {
 				RE::Camera::setAspectRatio(persp_camera.handle, camera_data.aspectRatio.value());
 			}
@@ -346,7 +371,7 @@ loadCameras(const fastgltf::Asset &asset) {
 		} else {
 			auto &camera_data =
 					std::get<fastgltf::Camera::Orthographic>(camera.camera);
-			RE::Camera::Shared ortho_camera = RE::Camera::create();
+			RE::Camera::Shared ortho_camera{RE::Camera::create()};
 			RE::Camera::setXMag(ortho_camera.handle, camera_data.xmag);
 			RE::Camera::setYMag(ortho_camera.handle, camera_data.ymag);
 			RE::Camera::setNearPlane(ortho_camera.handle, camera_data.znear);
@@ -441,7 +466,7 @@ void load(std::string file_path) {
 		}
 		if (scene.nodes.view<RE::Camera::Shared>().size() == 0) {
 			auto node = scene.nodes.create();
-			RE::Camera::Shared camera = RE::Camera::create();
+			RE::Camera::Shared camera{RE::Camera::create()};
 			RE::Camera::setAspectRatio(camera.handle, 1.77);
 			RE::Camera::setFOV(camera.handle, glm::radians(75.0f));
 			RE::Camera::setNearPlane(camera.handle, 1.0f);

@@ -80,6 +80,7 @@ SDL_AppResult SDL_Fail() {
 }
 
 SDL_AppResult SDL_AppInit(void **app_state, int argc, char *argv[]) {
+	util::setFileLogging(GAME_ENGINE_BUILD_DIR "debug.log", true);
 	if (not SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO)) {
 		return SDL_Fail();
 	}
@@ -113,16 +114,16 @@ SDL_AppResult SDL_AppInit(void **app_state, int argc, char *argv[]) {
 	AudioEngine *audio_engine = new AudioEngine();
 	PhysicsEngine *physics_engine = new PhysicsEngine();
 
-	RE::Camera::Shared scene_camera = RE::Camera::create();
+	RE::Camera::Shared scene_camera{ RE::Camera::create()};
 	RE::Camera::setAspectRatio(scene_camera.handle, 1.77);
 	RE::Camera::setFOV(scene_camera.handle, glm::radians(75.0f));
 	RE::Camera::setNearPlane(scene_camera.handle, 1.0f);
 	RE::Camera::setFarPlane(scene_camera.handle, 100.0f);
 
 	*app_state = new AppContext{
-		.render_target = RE::Texture::create(1920, 1080,
+		.render_target = RE::Texture::Shared{RE::Texture::create(1920, 1080,
 				RE::Texture::UsageFlags::COLOR_TARGET |
-						RE::Texture::UsageFlags::SAMPLER),
+						RE::Texture::UsageFlags::SAMPLER)},
 		.renderer_options =
 				RE::Options{ .clear_color = glm::vec4(0.1f, 0.1f, 0.1f, 1.0f) },
 		.scene_camera = scene_camera,
@@ -135,14 +136,13 @@ SDL_AppResult SDL_AppInit(void **app_state, int argc, char *argv[]) {
 	camera_transform.rotate = glm::quatLookAt(-dir, glm::vec3{ 0, 1, 0 });
 	camera_transform.scale = glm::vec3{ 1, 1, 1 };
 	// load(GAME_ENGINE_DEFAULT_DATA_DIR "scenes/glTF-Sample-Models/2.0/Box/glTF/Box.gltf");
-	// load(GAME_ENGINE_DEFAULT_DATA_DIR "scenes/glTF-Sample-Models/2.0/Sponza/glTF/Sponza.gltf");
-	// load(GAME_ENGINE_DEFAULT_DATA_DIR "scenes/glTF-Sample-Models/2.0/CesiumMilkTruck/glTF/CesiumMilkTruck.gltf");
 	// load(GAME_ENGINE_DEFAULT_DATA_DIR "scenes/glTF-Sample-Models/2.0/Cube/glTF/Cube.gltf");
 	// load(GAME_ENGINE_DEFAULT_DATA_DIR "scenes/glTF-Sample-Models/2.0/BoxVertexColors/glTF/BoxVertexColors.gltf");
 	// load(GAME_ENGINE_DEFAULT_DATA_DIR "scenes/glTF-Sample-Models/2.0/BoxTextured/glTF/BoxTextured.gltf");
 	// load(GAME_ENGINE_DEFAULT_DATA_DIR "scenes/glTF-Sample-Models/2.0/BoxTexturedNonPowerOfTwo/glTF/BoxTexturedNonPowerOfTwo.gltf");
+	// load(GAME_ENGINE_DEFAULT_DATA_DIR "scenes/glTF-Sample-Models/2.0/CesiumMilkTruck/glTF/CesiumMilkTruck.gltf");
 	load(GAME_ENGINE_DEFAULT_DATA_DIR "scenes/ftm/scene.gltf");
-	util::setFileLogging(GAME_ENGINE_BUILD_DIR "debug.log", true);
+	// load(GAME_ENGINE_DEFAULT_DATA_DIR "scenes/glTF-Sample-Models/2.0/Sponza/glTF/Sponza.gltf");
 	LOG_INFO("Application started successfully!");
 
 	return SDL_APP_CONTINUE;

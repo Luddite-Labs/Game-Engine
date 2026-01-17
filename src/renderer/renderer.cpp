@@ -161,7 +161,6 @@ void drawToTexture(const RE::Options &renderer_options,
 		regenerateDepthTexture(
 				TS::getTextureWidth(target_texture),
 				TS::getTextureHeight(target_texture));
-		return;
 	}
 
 	std::vector<PrimitiveRenderInfo> primitives;
@@ -278,8 +277,13 @@ void drawToTexture(const RE::Options &renderer_options,
 				SDL_GPUBufferBinding index_binding = {
 					.buffer = primitive->attrs_data[i].gpu_buffer, .offset = 0
 				};
-				SDL_BindGPUIndexBuffer(render_pass, &index_binding,
-						SDL_GPU_INDEXELEMENTSIZE_16BIT);
+				if (primitive->index_count <= UINT16_MAX) {
+					SDL_BindGPUIndexBuffer(render_pass, &index_binding,
+							SDL_GPU_INDEXELEMENTSIZE_16BIT);
+				} else {
+					SDL_BindGPUIndexBuffer(render_pass, &index_binding,
+							SDL_GPU_INDEXELEMENTSIZE_32BIT);
+				}
 			} else {
 				if (primitive->attrs_data[i].gpu_buffer != nullptr) {
 					SDL_GPUBufferBinding binding = { .buffer = primitive->attrs_data[i].gpu_buffer, .offset = 0 };

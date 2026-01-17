@@ -48,7 +48,7 @@ namespace util {
         log_filename = filename;
 
         if (status && !filename.empty()) {
-            log_file = fopen(filename.c_str(), "a");
+            log_file = fopen(filename.c_str(), "w");
             if (!log_file) {
                 SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to open log file: %s", filename.c_str());
                 log_to_file = false;
