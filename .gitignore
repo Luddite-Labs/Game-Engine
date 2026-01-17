@@ -11,5 +11,6 @@ data/
 # Build
 [Oo]ut/
 [Bb]uild/
+__output/
 
 .DS_Store
