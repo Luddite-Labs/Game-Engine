@@ -7,11 +7,19 @@
 
 class Scene {
 public:
-  // all buffers are GPU buffers. CPU buffers discarded after load
-  entt::entity active_camera_node;
-  // sorted according BFS layout
-  entt::registry nodes;
-  std::string name;
+	// all buffers are GPU buffers. CPU buffers discarded after load
+	entt::entity active_camera_node;
+	//! sort according BFS layout
+	entt::registry nodes;
+	std::string name;
 
-  Scene() {}
+	Scene() : name(), nodes(), active_camera_node() {}
+
+	Scene(Scene &&other) : name(other.name), nodes(std::move(other.nodes)), active_camera_node(other.active_camera_node) {
+  }
+	void operator=(Scene &&other) {
+		name = other.name;
+    nodes= std::move(other.nodes);
+		active_camera_node = other.active_camera_node;
+	}
 };

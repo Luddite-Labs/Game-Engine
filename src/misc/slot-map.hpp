@@ -8,7 +8,11 @@
 #include <misc/utils.hpp>
 #include <vector>
 
-#define __PRETTY_FUNCTION__ ""
+#ifdef _MSC_VER
+#define SLOT_MAP_FUNC_PRINT __FUNCTION__ // or __FUNCSIG__
+#else
+#define SLOT_MAP_FUNC_PRINT __PRETTY_FUNCTION__
+#endif
 #define CHUNK_SIZE 4096
 struct Slot {
 	union {
@@ -92,7 +96,7 @@ public:
 
 	C insert(const D &val) {
 		if (live_node_count + dead_node_count == data.size()) {
-			LOG_DEBUG("%s: unrefing slot %d reallocing new size %d", __PRETTY_FUNCTION__, data.size());
+			LOG_DEBUG("%s: unrefing slot %d reallocing new size %d", SLOT_MAP_FUNC_PRINT, data.size());
 			data.resize(data.size() + CHUNK_SIZE / sizeof(T));
 			slots.resize(data.size() + CHUNK_SIZE / sizeof(T));
 			index_slot_map.resize(data.size() + CHUNK_SIZE / sizeof(T));
@@ -105,7 +109,7 @@ public:
 		setData(slot_index, data_index, val);
 		index_slot_map[data_index] = slot_index;
 
-		LOG_DEBUG("%s: inserting slot %d", __PRETTY_FUNCTION__, slot_index);
+		LOG_DEBUG("%s: inserting slot %d", SLOT_MAP_FUNC_PRINT, slot_index);
 		live_node_count += 1;
 		return {
 			.slot_index = slot_index,
@@ -117,9 +121,9 @@ public:
 		assert(isValid(handle));
 		const uint32_t slot_index = handle.slot_index;
 		slots[slot_index].ref_count -= 1;
-		LOG_DEBUG("%s: unrefing slot %d new ref count %d", __PRETTY_FUNCTION__, handle.slot_index, slots[slot_index].ref_count);
+		LOG_DEBUG("%s: unrefing slot %d new ref count %d", SLOT_MAP_FUNC_PRINT, handle.slot_index, slots[slot_index].ref_count);
 		if (slots[slot_index].ref_count == 0) {
-			LOG_DEBUG("%s: deleting slot %d", __PRETTY_FUNCTION__, handle.slot_index);
+			LOG_DEBUG("%s: deleting slot %d", SLOT_MAP_FUNC_PRINT, handle.slot_index);
 			slots[slot_index].generation += 1;
 			live_node_count -= 1;
 			dead_node_count += 1;
@@ -132,7 +136,7 @@ public:
 
 	void ref(C handle) {
 		assert(isValid(handle));
-		LOG_DEBUG("%s: refing slot %d", __PRETTY_FUNCTION__, handle.slot_index);
+		LOG_DEBUG("%s: refing slot %d", SLOT_MAP_FUNC_PRINT, handle.slot_index);
 		slots[handle.slot_index].ref_count += 1;
 	}
 

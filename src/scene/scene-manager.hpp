@@ -6,7 +6,7 @@ class SceneManager {
 private:
   inline static SceneManager *singleton = nullptr;
 
-  SceneManager() {}
+  SceneManager(): scenes(), active_scene_index(0) {}
 
 public:
   std::vector<Scene> scenes;
