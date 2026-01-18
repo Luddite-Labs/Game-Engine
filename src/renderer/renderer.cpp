@@ -76,7 +76,7 @@ void regenerateDepthTexture(
 	}
 	m_renderer_data.depth_texture = TS::createTexture(width, height,
 			RE::Texture::UsageFlags::SAMPLER | RE::Texture::UsageFlags::DEPTH_STENCIL_TARGET,
-			RE::Texture::Format::D16_UNORM);
+			RE::Texture::Format::D24_UNORM);
 }
 
 bool isMeshInViewFrustum(RE::Mesh::Handle mesh, glm::mat4x4 viewProj) {
@@ -98,18 +98,18 @@ void init() {
 			RE::Texture::UsageFlags::SAMPLER,
 			RE::Texture::Format::R8G8B8A8_UNORM);
 	TS::uploadBufferToTexture(m_renderer_data.dummy_texture,
-			std::shared_ptr<uint8_t>(new uint8_t[4]{ 255, 255, 255, 255 },
+			std::shared_ptr<uint8_t>(new uint8_t[4]{ 255, 0, 255, 255 },
 					std::default_delete<uint8_t[]>()),
 			0, 4);
 	m_renderer_data.dummy_sampler = SaS::createSampler(
-			RE::Sampler::FilteringModes::NEAREST,
-			RE::Sampler::FilteringModes::NEAREST,
-			RE::Sampler::AddressingModes::CLAMP_TO_EDGE,
-			RE::Sampler::AddressingModes::CLAMP_TO_EDGE,
-			RE::Sampler::AddressingModes::CLAMP_TO_EDGE);
+			RE::Sampler::FilteringModes::LINEAR,
+			RE::Sampler::FilteringModes::LINEAR,
+			RE::Sampler::AddressingModes::REPEAT,
+			RE::Sampler::AddressingModes::REPEAT,
+			RE::Sampler::AddressingModes::REPEAT);
 	m_renderer_data.depth_texture = TS::createTexture(1, 1,
 			RE::Texture::UsageFlags::SAMPLER | RE::Texture::UsageFlags::DEPTH_STENCIL_TARGET,
-			RE::Texture::Format::D16_UNORM);
+			RE::Texture::Format::D24_UNORM);
 	m_renderer_data.dummy_material = MaS::createMaterial();
 }
 

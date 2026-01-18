@@ -1,0 +1,5 @@
+[/] Components view
+[/] Selection and drag drop of nodes
+[/] Node graph loading 
+[/] Texture display
+[/] Fixing error in slot map

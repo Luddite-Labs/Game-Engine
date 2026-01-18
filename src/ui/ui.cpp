@@ -40,6 +40,7 @@ UI::UI(SDL_Window *window) {
 
 	// When viewports are enabled we tweak WindowRounding/WindowBg so platform
 	// windows can look identical to regular ones.
+	io.IniFilename = GAME_ENGINE_BUILD_DIR "imgui.ini";
 	if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable) {
 		style.WindowRounding = 0.0f;
 		style.Colors[ImGuiCol_WindowBg].w = 1.0f;
@@ -83,6 +84,8 @@ void UI::beginFrame() {
 
 	ImGui::DockSpaceOverViewport();
 	ImGuiIO &io = ImGui::GetIO();
+
+	ImGui::ShowDemoWindow();
 }
 
 void UI::endFrame(SDL_Window *window) {

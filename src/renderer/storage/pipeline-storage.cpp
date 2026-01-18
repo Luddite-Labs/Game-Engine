@@ -55,7 +55,7 @@ RE::Pipeline::Handle createPipeline(const RE::Pipeline::Options &options) {
 	target_info.color_target_descriptions = color_target_descriptions;
 	target_info.num_color_targets = 1;
 	if (options.primitive_type == RE::Mesh::Primitive::Type::TRIANGLELIST) {
-		target_info.depth_stencil_format = SDL_GPU_TEXTUREFORMAT_D16_UNORM;
+		target_info.depth_stencil_format = static_cast<SDL_GPUTextureFormat>(RE::Texture::Format::D24_UNORM);
 		target_info.has_depth_stencil_target = true;
 	}
 	std::vector<SDL_GPUVertexAttribute>

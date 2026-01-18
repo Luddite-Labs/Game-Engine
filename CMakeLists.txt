@@ -33,6 +33,7 @@ endif()
 
 # Configuration file
 configure_file(${CMAKE_SOURCE_DIR}/.editorconfig .editorconfig COPYONLY)
+configure_file(${CMAKE_SOURCE_DIR}/imgui.ini imgui.ini COPYONLY)
 
 file(GLOB IMGUI_LIB_FILES external/imgui/*)
 file(GLOB IMPLOT_LIB_FILES external/implot/*)

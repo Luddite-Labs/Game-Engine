@@ -166,12 +166,13 @@ loadSamplers(const fastgltf::Asset &asset) {
 	return std::move(images);
 }
 
+// use SRGB for color texture 
 [[nodiscard]] std::vector<RE::Texture::Shared>
 loadTextures(const fastgltf::Asset &asset,
 		const std::vector<RE::Sampler::Shared> &samplers,
 		const std::vector<Image> &images) {
 	std::vector<RE::Texture::Shared> textures;
-	//! use the right format for texture
+	//! use the right format for texture RE::Texture::Format::R8G8B8A8_UNORM_SRGB
 	for (auto &asset_texture : asset.textures) {
 		const auto &image = images[asset_texture.imageIndex.value()];
 		RE::Texture::Shared texture{RE::Texture::create(image.width, image.height)};
@@ -469,8 +470,8 @@ void load(std::string file_path) {
 			RE::Camera::Shared camera{RE::Camera::create()};
 			RE::Camera::setAspectRatio(camera.handle, 1.77);
 			RE::Camera::setFOV(camera.handle, glm::radians(75.0f));
-			RE::Camera::setNearPlane(camera.handle, 1.0f);
-			RE::Camera::setFarPlane(camera.handle, 100.0f);
+			RE::Camera::setNearPlane(camera.handle, .1f);
+			RE::Camera::setFarPlane(camera.handle, 1000.0f);
 			scene.nodes.emplace<RE::Camera::Shared>(node, camera);
 			scene.nodes.emplace<Tag>(node, "Default Camera");
 			scene.active_camera_node = node;
