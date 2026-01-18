@@ -11,5 +11,7 @@ data/
 # Build
 [Oo]ut/
 [Bb]uild/
+__output/
+CMakeSettings.json
 
 .DS_Store

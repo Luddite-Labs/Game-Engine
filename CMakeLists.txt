@@ -135,7 +135,7 @@ target_link_libraries(${EXECUTABLE_NAME} PUBLIC
     SDL3_image::SDL3_image
     SDL3_shadercross::SDL3_shadercross
     EnTT::EnTT
-    glm
+    PRIVATE glm::glm-header-only
     fastgltf
 )
 target_compile_definitions(${EXECUTABLE_NAME} PUBLIC SDL_MAIN_USE_CALLBACKS)
@@ -235,7 +235,7 @@ target_include_directories(tests
 target_link_libraries(
   tests
   GTest::gtest_main
-  glm
+  glm::glm-header-only
 )
 
 include(GoogleTest)

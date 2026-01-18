@@ -8,6 +8,7 @@
 #include <glm/vec3.hpp>
 #include <glm/vec4.hpp>
 #include <memory>
+#include <string>
 
 #define HANDLE()                                                                              \
 	struct Handle {                                                                           \
