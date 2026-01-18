@@ -120,7 +120,7 @@ SDL_AppResult SDL_AppInit(void **app_state, int argc, char *argv[]) {
 	*app_state = new AppContext{
 		.render_target = RE::Texture::Shared{ RE::Texture::create(1920, 1080,
 				RE::Texture::UsageFlags::COLOR_TARGET |
-						RE::Texture::UsageFlags::SAMPLER) },
+						RE::Texture::UsageFlags::SAMPLER, RE::Texture::Format::R8G8B8A8_UNORM_SRGB) },
 		.renderer_options =
 				RE::Options{ .clear_color = glm::vec4(0.1f, 0.1f, 0.1f, 1.0f) },
 		.scene_camera = scene_camera,

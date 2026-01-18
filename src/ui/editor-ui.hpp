@@ -37,6 +37,8 @@ void loadGLTFCallback(void *userdata, const char *const *filelist, int filter) {
 
 void handleEditorCameraMovement(Transform &trs, RE::Camera::Shared camera, glm::vec2 content_region) {
 	ImGuiIO &io = ImGui::GetIO();
+	float camera_speed = 5.0f;
+	float rot_speed = 50.0f;
 	glm::mat4x4 camera_transform = glm::translate(glm::mat4(1), trs.translate) * glm::mat4_cast(trs.rotate) * glm::scale(glm::mat4(1), trs.scale);
 	auto view_matrix = glm::inverse(camera_transform);
 	glm::vec3 forward_world = glm::vec3(0.0f, 0.0f, -1.0f);
@@ -56,15 +58,15 @@ void handleEditorCameraMovement(Transform &trs, RE::Camera::Shared camera, glm::
 	if (io.MouseDown[ImGuiMouseButton_Middle]) {
 		if (ImGui::IsKeyDown(ImGuiKey_LeftShift)) {
 			//! better solution needed
-			float camera_speed = 5.0f;
+			
 			float delta_x = camera_speed * (io.MouseDelta.x / content_region.x) * RE::Camera::getAspectRatio(camera.handle) * -1;
 			float delta_y = camera_speed * (io.MouseDelta.y / content_region.y); // invert
 			trs.translate += delta_x * camera_right_world + delta_y * camera_up_world;
 		}
 		// Middle mouse button for rotation
 		else {
-			float delta_x = io.MouseDelta.x * -1; // invert
-			float delta_y = io.MouseDelta.y * -1; // invert
+			float delta_x = rot_speed * (io.MouseDelta.x / content_region.x) * -1; // invert
+			float delta_y = rot_speed * (io.MouseDelta.y / content_region.y) * -1; // invert
 			if (std::abs(delta_x) > 0.1) {
 				trs.rotate *= glm::angleAxis(glm::radians(delta_x), up_world_camera);
 			}
