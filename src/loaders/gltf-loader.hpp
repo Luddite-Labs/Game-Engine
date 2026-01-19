@@ -40,54 +40,72 @@ struct Image {
 [[nodiscard]] std::vector<RE::Sampler::Shared>
 loadSamplers(const fastgltf::Asset &asset) {
 	std::vector<RE::Sampler::Shared> samplers;
+	RE::Sampler::FilteringModes mag_filter = RE::Sampler::FilteringModes::NEAREST;
+	RE::Sampler::FilteringModes min_filter = RE::Sampler::FilteringModes::NEAREST;
+	RE::Sampler::AddressingModes u_addressing = RE::Sampler::AddressingModes::REPEAT;
+	RE::Sampler::AddressingModes v_addressing = RE::Sampler::AddressingModes::REPEAT;
+	RE::Sampler::AddressingModes w_addressing = RE::Sampler::AddressingModes::REPEAT;
+	RE::Sampler::MipMapMode mip_map_mode = RE::Sampler::MipMapMode::NEAREST;
 	for (const auto &asset_sampler : asset.samplers) {
-		RE::Sampler::Shared sampler{ RE::Sampler::create() };
 		if (asset_sampler.magFilter.has_value()) {
 			switch (asset_sampler.magFilter.value()) {
 				case fastgltf::Filter::Nearest:
-					RE::Sampler::setMagFilter(sampler.handle, RE::Sampler::FilteringModes::NEAREST);
+					mag_filter = RE::Sampler::FilteringModes::NEAREST;
 					break;
 				case fastgltf::Filter::Linear:
-					RE::Sampler::setMagFilter(sampler.handle, RE::Sampler::FilteringModes::LINEAR);
+					mag_filter = RE::Sampler::FilteringModes::LINEAR;
 					break;
-				default: //! implement all filtering modes
-					RE::Sampler::setMagFilter(sampler.handle, RE::Sampler::FilteringModes::NEAREST);
 			}
 		}
 		if (asset_sampler.minFilter.has_value()) {
 			switch (asset_sampler.minFilter.value()) {
 				case fastgltf::Filter::Nearest:
-					RE::Sampler::setMinFilter(sampler.handle, RE::Sampler::FilteringModes::NEAREST);
+					min_filter = RE::Sampler::FilteringModes::NEAREST;
 					break;
 				case fastgltf::Filter::Linear:
-					RE::Sampler::setMinFilter(sampler.handle, RE::Sampler::FilteringModes::LINEAR);
+					min_filter = RE::Sampler::FilteringModes::LINEAR;
 					break;
-				default: //! implement all filtering modes
-					RE::Sampler::setMinFilter(sampler.handle, RE::Sampler::FilteringModes::NEAREST);
+				case fastgltf::Filter::NearestMipMapNearest:
+					min_filter = RE::Sampler::FilteringModes::NEAREST;
+					mip_map_mode = RE::Sampler::MipMapMode::NEAREST;
+					break;
+				case fastgltf::Filter::NearestMipMapLinear:
+					min_filter = RE::Sampler::FilteringModes::NEAREST;
+					mip_map_mode = RE::Sampler::MipMapMode::LINEAR;
+					break;
+				case fastgltf::Filter::LinearMipMapNearest:
+					min_filter = RE::Sampler::FilteringModes::LINEAR;
+					mip_map_mode = RE::Sampler::MipMapMode::NEAREST;
+					break;
+				case fastgltf::Filter::LinearMipMapLinear:
+					min_filter = RE::Sampler::FilteringModes::LINEAR;
+					mip_map_mode = RE::Sampler::MipMapMode::LINEAR;
+					break;
 			}
 		}
 		switch (asset_sampler.wrapT) {
 			case fastgltf::Wrap::Repeat:
-				RE::Sampler::setUAddressing(sampler.handle, RE::Sampler::AddressingModes::REPEAT);
+				u_addressing = RE::Sampler::AddressingModes::REPEAT;
 				break;
 			case fastgltf::Wrap::ClampToEdge:
-				RE::Sampler::setUAddressing(sampler.handle, RE::Sampler::AddressingModes::CLAMP_TO_EDGE);
+				u_addressing = RE::Sampler::AddressingModes::CLAMP_TO_EDGE;
 				break;
 			case fastgltf::Wrap::MirroredRepeat:
-				RE::Sampler::setUAddressing(sampler.handle, RE::Sampler::AddressingModes::MIRRORED_REPEAT);
+				u_addressing = RE::Sampler::AddressingModes::MIRRORED_REPEAT;
 				break;
 		}
 		switch (asset_sampler.wrapS) {
 			case fastgltf::Wrap::Repeat:
-				RE::Sampler::setVAddressing(sampler.handle, RE::Sampler::AddressingModes::REPEAT);
+				v_addressing = RE::Sampler::AddressingModes::REPEAT;
 				break;
 			case fastgltf::Wrap::ClampToEdge:
-				RE::Sampler::setVAddressing(sampler.handle, RE::Sampler::AddressingModes::CLAMP_TO_EDGE);
+				v_addressing = RE::Sampler::AddressingModes::CLAMP_TO_EDGE;
 				break;
 			case fastgltf::Wrap::MirroredRepeat:
-				RE::Sampler::setVAddressing(sampler.handle, RE::Sampler::AddressingModes::MIRRORED_REPEAT);
+				v_addressing = RE::Sampler::AddressingModes::MIRRORED_REPEAT;
 				break;
 		}
+		RE::Sampler::Shared sampler{ RE::Sampler::create(mag_filter, min_filter, u_addressing, v_addressing, w_addressing, mip_map_mode) };
 		samplers.push_back(sampler);
 	}
 	return std::move(samplers);
@@ -133,15 +151,8 @@ loadSamplers(const fastgltf::Asset &asset) {
 						[&](fastgltf::sources::BufferView &view) {
 							auto &bufferView = asset.bufferViews[view.bufferViewIndex];
 							auto &buffer = asset.buffers[bufferView.bufferIndex];
-							// Yes, we've already loaded every buffer into some GL buffer.
-							// However, with GL it's simpler to just copy the buffer data
-							// again for the texture. Besides, this is just an example.
 							std::visit(
 									fastgltf::visitor{
-											// We only care about VectorWithMime here, because we
-											// specify
-											// LoadExternalBuffers, meaning
-											// all buffers are already loaded into a vector.
 											[](auto &arg) {},
 											[&](fastgltf::sources::Array &vector) {
 												int width, height, nrChannels;
@@ -166,36 +177,13 @@ loadSamplers(const fastgltf::Asset &asset) {
 	return std::move(images);
 }
 
-// use SRGB for color texture 
-[[nodiscard]] std::vector<RE::Texture::Shared>
-loadTextures(const fastgltf::Asset &asset,
-		const std::vector<RE::Sampler::Shared> &samplers,
-		const std::vector<Image> &images) {
-	std::vector<RE::Texture::Shared> textures;
-	//! use the right format for texture RE::Texture::Format::R8G8B8A8_UNORM_SRGB
-	for (auto &asset_texture : asset.textures) {
-		const auto &image = images[asset_texture.imageIndex.value()];
-		RE::Texture::Shared texture{RE::Texture::create(image.width, image.height)};
-		RE::Texture::uploadBuffer(
-				texture.handle, image.buffer, 0,
-				static_cast<size_t>(image.width) *
-						static_cast<size_t>(image.height) *
-						static_cast<size_t>(image.channels));
-		if (asset_texture.samplerIndex.has_value()) {
-			const auto &sampler = samplers[asset_texture.samplerIndex.value()];
-			RE::Texture::setSampler(texture.handle, sampler.handle);
-		}
-		textures.push_back(texture);
-	}
-	return std::move(textures);
-}
-
 [[nodiscard]] std::vector<RE::Material::Shared>
 loadMaterials(const fastgltf::Asset &asset,
-		const std::vector<RE::Texture::Shared> &textures) {
+		const std::vector<RE::Sampler::Shared> &samplers,
+		const std::vector<Image> &images) {
 	std::vector<RE::Material::Shared> materials;
 	for (const auto &asset_material : asset.materials) {
-		RE::Material::Shared material{ RE::Material::create()};
+		RE::Material::Shared material{ RE::Material::create() };
 		RE::Material::setColorFactor(material.handle,
 				glm::make_vec4(asset_material.pbrData.baseColorFactor.data()));
 		RE::Material::setEmissiveFactor(material.handle,
@@ -203,34 +191,124 @@ loadMaterials(const fastgltf::Asset &asset,
 		RE::Material::setMetallicFactor(material.handle, asset_material.pbrData.metallicFactor);
 		RE::Material::setRoughnessFactor(material.handle, asset_material.pbrData.roughnessFactor);
 		if (asset_material.pbrData.baseColorTexture.has_value()) {
-			RE::Material::setColorTexture(material.handle,
-					textures[asset_material.pbrData.baseColorTexture
-									 ->textureIndex]
-							.handle); // tex coord index transform
+			auto &asset_texture = asset.textures[asset_material.pbrData.baseColorTexture.value().textureIndex];
+			if (asset_texture.imageIndex.has_value()) {
+				const auto &image = images[asset_texture.imageIndex.value()];
+				bool generate_mip_maps = false;
+				if (asset_texture.samplerIndex.has_value() and asset.samplers[asset_texture.samplerIndex.value()].minFilter != fastgltf::Filter::Linear and asset.samplers[asset_texture.samplerIndex.value()].minFilter != fastgltf::Filter::Nearest) {
+					generate_mip_maps = true;
+				}
+				RE::Texture::Shared texture{
+					RE::Texture::create(
+							image.width, image.height,
+							RE::Texture::UsageFlags::SAMPLER | RE::Texture::UsageFlags::COLOR_TARGET,
+							RE::Texture::Format::R8G8B8A8_UNORM, // _SRGB later when imgui shader switched
+							generate_mip_maps)
+				};
+				RE::Texture::uploadBuffer(
+						texture.handle, image.buffer, 0,
+						static_cast<size_t>(image.width) *
+								static_cast<size_t>(image.height) *
+								static_cast<size_t>(image.channels));
+				if (asset_texture.samplerIndex.has_value()) {
+					const auto &sampler = samplers[asset_texture.samplerIndex.value()];
+					RE::Texture::setSampler(texture.handle, sampler.handle);
+				}
+				RE::Material::setColorTexture(material.handle,
+						texture.handle); // tex coord index transform
+			}
 		}
 		if (asset_material.normalTexture.has_value()) {
-			RE::Material::setNormalTexture(material.handle,
-					textures[asset_material.normalTexture
-									 ->textureIndex]
-							.handle); // tex coord index transform
+			auto &asset_texture = asset.textures[asset_material.pbrData.baseColorTexture.value().textureIndex];
+			if (asset_texture.imageIndex.has_value()) {
+				const auto &image = images[asset_texture.imageIndex.value()];
+				RE::Texture::Shared texture{
+					RE::Texture::create(
+							image.width, image.height,
+							RE::Texture::UsageFlags::SAMPLER,
+							RE::Texture::Format::R8G8B8A8_UNORM)
+				};
+				RE::Texture::uploadBuffer(
+						texture.handle, image.buffer, 0,
+						static_cast<size_t>(image.width) *
+								static_cast<size_t>(image.height) *
+								static_cast<size_t>(image.channels));
+				if (asset_texture.samplerIndex.has_value()) {
+					const auto &sampler = samplers[asset_texture.samplerIndex.value()];
+					RE::Texture::setSampler(texture.handle, sampler.handle);
+				}
+				RE::Material::setNormalTexture(material.handle,
+						texture.handle); // tex coord index transform
+			}
 		}
 		if (asset_material.emissiveTexture.has_value()) {
-			RE::Material::setEmissiveTexture(material.handle,
-					textures[asset_material.emissiveTexture
-									 ->textureIndex]
-							.handle); // tex coord index transform
+			auto &asset_texture = asset.textures[asset_material.pbrData.baseColorTexture.value().textureIndex];
+			if (asset_texture.imageIndex.has_value()) {
+				const auto &image = images[asset_texture.imageIndex.value()];
+				RE::Texture::Shared texture{
+					RE::Texture::create(
+							image.width, image.height,
+							RE::Texture::UsageFlags::SAMPLER,
+							RE::Texture::Format::R8G8B8A8_UNORM)
+				};
+				RE::Texture::uploadBuffer(
+						texture.handle, image.buffer, 0,
+						static_cast<size_t>(image.width) *
+								static_cast<size_t>(image.height) *
+								static_cast<size_t>(image.channels));
+				if (asset_texture.samplerIndex.has_value()) {
+					const auto &sampler = samplers[asset_texture.samplerIndex.value()];
+					RE::Texture::setSampler(texture.handle, sampler.handle);
+				}
+				RE::Material::setEmissiveTexture(material.handle,
+						texture.handle); // tex coord index transform
+			}
 		}
 		if (asset_material.occlusionTexture.has_value()) {
-			RE::Material::setOcclusionTexture(material.handle,
-					textures[asset_material.occlusionTexture
-									 ->textureIndex]
-							.handle); // tex coord index transform
+			auto &asset_texture = asset.textures[asset_material.pbrData.baseColorTexture.value().textureIndex];
+			if (asset_texture.imageIndex.has_value()) {
+				const auto &image = images[asset_texture.imageIndex.value()];
+				RE::Texture::Shared texture{
+					RE::Texture::create(
+							image.width, image.height,
+							RE::Texture::UsageFlags::SAMPLER,
+							RE::Texture::Format::R8G8B8A8_UNORM)
+				};
+				RE::Texture::uploadBuffer(
+						texture.handle, image.buffer, 0,
+						static_cast<size_t>(image.width) *
+								static_cast<size_t>(image.height) *
+								static_cast<size_t>(image.channels));
+				if (asset_texture.samplerIndex.has_value()) {
+					const auto &sampler = samplers[asset_texture.samplerIndex.value()];
+					RE::Texture::setSampler(texture.handle, sampler.handle);
+				}
+				RE::Material::setOcclusionTexture(material.handle,
+						texture.handle); // tex coord index transform
+			}
 		}
 		if (asset_material.pbrData.metallicRoughnessTexture.has_value()) {
-			RE::Material::setMetallicRoughnessTexture(material.handle,
-					textures[asset_material.pbrData.metallicRoughnessTexture
-									 ->textureIndex]
-							.handle); // tex coord index transform
+			auto &asset_texture = asset.textures[asset_material.pbrData.baseColorTexture.value().textureIndex];
+			if (asset_texture.imageIndex.has_value()) {
+				const auto &image = images[asset_texture.imageIndex.value()];
+				RE::Texture::Shared texture{
+					RE::Texture::create(
+							image.width, image.height,
+							RE::Texture::UsageFlags::SAMPLER,
+							RE::Texture::Format::R8G8B8A8_UNORM)
+				};
+				RE::Texture::uploadBuffer(
+						texture.handle, image.buffer, 0,
+						static_cast<size_t>(image.width) *
+								static_cast<size_t>(image.height) *
+								static_cast<size_t>(image.channels));
+				if (asset_texture.samplerIndex.has_value()) {
+					const auto &sampler = samplers[asset_texture.samplerIndex.value()];
+					RE::Texture::setSampler(texture.handle, sampler.handle);
+				}
+				RE::Material::setMetallicRoughnessTexture(material.handle,
+						texture.handle); // tex coord index transform
+			}
 		}
 		materials.push_back(material);
 	}
@@ -343,7 +421,7 @@ loadMeshes(const fastgltf::Asset &asset, const std::vector<RE::Material::Shared>
 				}
 			}
 		}
-		RE::Mesh::Shared mesh{ RE::Mesh::create(mesh_data)};
+		RE::Mesh::Shared mesh{ RE::Mesh::create(mesh_data) };
 		if (mesh.valid()) {
 			meshes.emplace_back(mesh);
 		}
@@ -358,7 +436,7 @@ loadCameras(const fastgltf::Asset &asset) {
 		if (std::holds_alternative<fastgltf::Camera::Perspective>(camera.camera)) {
 			auto &camera_data =
 					std::get<fastgltf::Camera::Perspective>(camera.camera);
-			RE::Camera::Shared persp_camera{ RE::Camera::create()};
+			RE::Camera::Shared persp_camera{ RE::Camera::create() };
 			if (camera_data.aspectRatio.has_value()) {
 				RE::Camera::setAspectRatio(persp_camera.handle, camera_data.aspectRatio.value());
 			}
@@ -372,7 +450,7 @@ loadCameras(const fastgltf::Asset &asset) {
 		} else {
 			auto &camera_data =
 					std::get<fastgltf::Camera::Orthographic>(camera.camera);
-			RE::Camera::Shared ortho_camera{RE::Camera::create()};
+			RE::Camera::Shared ortho_camera{ RE::Camera::create() };
 			RE::Camera::setXMag(ortho_camera.handle, camera_data.xmag);
 			RE::Camera::setYMag(ortho_camera.handle, camera_data.ymag);
 			RE::Camera::setNearPlane(ortho_camera.handle, camera_data.znear);
@@ -398,10 +476,10 @@ void load(std::string file_path) {
 
 	std::vector<RE::Sampler::Shared> samplers = loadSamplers(asset.get());
 	std::vector<Image> images = loadImages(asset.get(), gltf_path);
-	std::vector<RE::Texture::Shared> textures =
-			loadTextures(asset.get(), samplers, images);
+	// std::vector<RE::Texture::Shared> textures =
+	// 		loadTextures(asset.get(), samplers, images);
 	std::vector<RE::Material::Shared> materials =
-			loadMaterials(asset.get(), textures);
+			loadMaterials(asset.get(), samplers, images);
 	std::vector<RE::Mesh::Shared> meshes = loadMeshes(asset.get(), materials);
 	std::vector<RE::Camera::Shared> cameras = loadCameras(asset.get());
 
@@ -467,7 +545,7 @@ void load(std::string file_path) {
 		}
 		if (scene.nodes.view<RE::Camera::Shared>().size() == 0) {
 			auto node = scene.nodes.create();
-			RE::Camera::Shared camera{RE::Camera::create()};
+			RE::Camera::Shared camera{ RE::Camera::create() };
 			RE::Camera::setAspectRatio(camera.handle, 1.77);
 			RE::Camera::setFOV(camera.handle, glm::radians(75.0f));
 			RE::Camera::setNearPlane(camera.handle, .1f);

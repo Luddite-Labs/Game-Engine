@@ -15,8 +15,12 @@ void destroy() {}
 RE::Texture::Handle createTexture(uint32_t width, uint32_t height,
 		// TextureType type, ! maybe other texture supports in the future
 		RE::Texture::UsageFlags usage_flags,
-		RE::Texture::Format format) {
+		RE::Texture::Format format, bool generate_mip_maps) {
 	SDL_assert(m_GPU_device);
+	uint32_t mip_levels = 1;
+	if (generate_mip_maps) {
+		mip_levels = std::floor(std::log2(std::max(width, height))) + 1;
+	}
 	const SDL_GPUTextureCreateInfo tex_info{
 		.type = static_cast<SDL_GPUTextureType>(RE::Texture::Type::TEXTURE_2D),
 		.format = static_cast<SDL_GPUTextureFormat>(format),
@@ -24,17 +28,16 @@ RE::Texture::Handle createTexture(uint32_t width, uint32_t height,
 		.width = width,
 		.height = height,
 		.layer_count_or_depth = 1,
-		.num_levels = 1,
+		.num_levels = mip_levels,
 		.sample_count = SDL_GPU_SAMPLECOUNT_1,
 		.props = 0
 	};
 	SDL_GPUTexture *gpu_handle = SDL_CreateGPUTexture(m_GPU_device, &tex_info);
-	return texture_storage.insert({
-			.gpu_handle = gpu_handle,
+	return texture_storage.insert({ .gpu_handle = gpu_handle,
 			.width = width,
 			.height = height,
 			.format = format,
-	});
+			.mip_levels = mip_levels });
 }
 void refTexture(RE::Texture::Handle texture) {
 	texture_storage.ref(texture);
@@ -106,7 +109,11 @@ void uploadBufferToTexture(RE::Texture::Handle texture,
 	};
 	SDL_UploadToGPUTexture(copy_pass, &tex_tranfer_location,
 			&tex_transfer_region, false);
+
 	SDL_EndGPUCopyPass(copy_pass);
+	if (tex.mip_levels > 1) {
+		SDL_GenerateMipmapsForGPUTexture(copy_cmd_buffer, tex.gpu_handle);
+	}
 	SDL_SubmitGPUCommandBuffer(copy_cmd_buffer);
 	SDL_ReleaseGPUTransferBuffer(m_GPU_device, transfer_buffer);
 }
@@ -114,7 +121,7 @@ SDL_GPUTexture *getTextureGPUHandle(RE::Texture::Handle texture) {
 	SDL_assert(texture_storage.isValid(texture));
 	return texture_storage.get(texture).gpu_handle;
 }
-bool isValid(RE::Texture::Handle texture){
+bool isValid(RE::Texture::Handle texture) {
 	return texture_storage.isValid(texture);
 }
 }; // namespace TS

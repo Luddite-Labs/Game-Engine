@@ -76,7 +76,7 @@ void regenerateDepthTexture(
 	}
 	m_renderer_data.depth_texture = TS::createTexture(width, height,
 			RE::Texture::UsageFlags::SAMPLER | RE::Texture::UsageFlags::DEPTH_STENCIL_TARGET,
-			RE::Texture::Format::D24_UNORM);
+			RE::Texture::Format::D24_UNORM, false);
 }
 
 bool isMeshInViewFrustum(RE::Mesh::Handle mesh, glm::mat4x4 viewProj) {
@@ -96,9 +96,9 @@ void init() {
 	MS::init(m_GPU_device);
 	m_renderer_data.dummy_texture = TS::createTexture(1, 1,
 			RE::Texture::UsageFlags::SAMPLER,
-			RE::Texture::Format::R8G8B8A8_UNORM);
+			RE::Texture::Format::R8G8B8A8_UNORM, false);
 	TS::uploadBufferToTexture(m_renderer_data.dummy_texture,
-			std::shared_ptr<uint8_t>(new uint8_t[4]{ 255, 0, 255, 255 },
+			std::shared_ptr<uint8_t>(new uint8_t[4]{ 255, 255, 255, 255 },
 					std::default_delete<uint8_t[]>()),
 			0, 4);
 	m_renderer_data.dummy_sampler = SaS::createSampler(
@@ -106,10 +106,11 @@ void init() {
 			RE::Sampler::FilteringModes::LINEAR,
 			RE::Sampler::AddressingModes::REPEAT,
 			RE::Sampler::AddressingModes::REPEAT,
-			RE::Sampler::AddressingModes::REPEAT);
+			RE::Sampler::AddressingModes::REPEAT,
+			RE::Sampler::MipMapMode::LINEAR);
 	m_renderer_data.depth_texture = TS::createTexture(1, 1,
 			RE::Texture::UsageFlags::SAMPLER | RE::Texture::UsageFlags::DEPTH_STENCIL_TARGET,
-			RE::Texture::Format::D24_UNORM);
+			RE::Texture::Format::D24_UNORM, false);
 	m_renderer_data.dummy_material = MaS::createMaterial();
 }
 
@@ -498,8 +499,9 @@ RE::Sampler::Handle create(
 		RE::Sampler::FilteringModes min_filter,
 		RE::Sampler::AddressingModes u_addressing,
 		RE::Sampler::AddressingModes v_addressing,
-		RE::Sampler::AddressingModes w_addressing) {
-	return SaS::createSampler(mag_filter, min_filter, u_addressing, v_addressing, w_addressing);
+		RE::Sampler::AddressingModes w_addressing,
+		RE::Sampler::MipMapMode mip_map_mode) {
+	return SaS::createSampler(mag_filter, min_filter, u_addressing, v_addressing, w_addressing, mip_map_mode);
 }
 void ref(RE::Sampler::Handle sampler) {
 	SaS::refSampler(sampler);
@@ -518,6 +520,12 @@ RE::Sampler::AddressingModes getUAddressing(RE::Sampler::Handle sampler) {
 }
 RE::Sampler::AddressingModes getVAddressing(RE::Sampler::Handle sampler) {
 	return SaS::getSamplerVAddressing(sampler);
+}
+Sampler::AddressingModes getWAddressing(Sampler::Handle sampler){
+	return SaS::getSamplerWAddressing(sampler);
+}
+Sampler::MipMapMode getMipMapMode(Sampler::Handle sampler){
+	return SaS::getSamplerMipMapMode(sampler);
 }
 void setMagFilter(RE::Sampler::Handle sampler, RE::Sampler::FilteringModes mode) {
 	SaS::setSamplerMagFilter(sampler, mode);
@@ -560,8 +568,9 @@ namespace Texture {
 Texture::Handle create(
 		uint32_t width, uint32_t height,
 		Texture::UsageFlags usage_flags,
-		Texture::Format format) {
-	return TS::createTexture(width, height, usage_flags, format);
+		Texture::Format format,
+		bool generate_mip_maps) {
+	return TS::createTexture(width, height, usage_flags, format, generate_mip_maps);
 }
 void ref(Texture::Handle texture) {
 	TS::refTexture(texture);

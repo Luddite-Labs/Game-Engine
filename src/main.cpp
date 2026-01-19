@@ -120,14 +120,14 @@ SDL_AppResult SDL_AppInit(void **app_state, int argc, char *argv[]) {
 	*app_state = new AppContext{
 		.render_target = RE::Texture::Shared{ RE::Texture::create(1920, 1080,
 				RE::Texture::UsageFlags::COLOR_TARGET |
-						RE::Texture::UsageFlags::SAMPLER, RE::Texture::Format::R8G8B8A8_UNORM_SRGB) },
+						RE::Texture::UsageFlags::SAMPLER, RE::Texture::Format::R8G8B8A8_UNORM) },//! not srgb since imgui renders incorrectly
 		.renderer_options =
 				RE::Options{ .clear_color = glm::vec4(0.1f, 0.1f, 0.1f, 1.0f) },
 		.scene_camera = scene_camera,
 		.window = window,
 	};
 	auto &camera_transform = static_cast<AppContext *>(*app_state)->camera_transform;
-	camera_transform.translate = { 10, 10, 10 };
+	camera_transform.translate = { -10, 5, 10 };
 	auto dir = glm::normalize(camera_transform.translate);
 	camera_transform.rotate = glm::quatLookAt(-dir, glm::vec3{ 0, 1, 0});
 	camera_transform.scale = glm::vec3{ 1, 1, 1 };

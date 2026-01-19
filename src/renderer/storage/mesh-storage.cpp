@@ -89,7 +89,7 @@ void loadTriangleList(RE::Mesh::Primitive::Arg &primitive_data, RE::Mesh::Primit
 	}
 	auto material_options = MaS::getMaterialOptions(primitive.material);
 	RE::Pipeline::Options options = {
-		.color_target_format = RE::Texture::Format::R8G8B8A8_UNORM,
+		.color_target_format = RE::Texture::Format::R8G8B8A8_UNORM, //! get from color_target
 		.primitive_type = primitive.type,
 		.vert_attrs = primitive_vert_attrs,
 		.material_options = material_options,

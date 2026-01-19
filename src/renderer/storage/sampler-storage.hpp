@@ -15,13 +15,16 @@ RE::Sampler::Handle createSampler(RE::Sampler::FilteringModes mag_filter,
 		RE::Sampler::FilteringModes min_filter,
 		RE::Sampler::AddressingModes u_addressing,
 		RE::Sampler::AddressingModes v_addressing,
-		RE::Sampler::AddressingModes w_addressing);
+		RE::Sampler::AddressingModes w_addressing,
+		RE::Sampler::MipMapMode mip_map_mode);
 void refSampler(RE::Sampler::Handle sampler);
 void destroySampler(RE::Sampler::Handle sampler);
 RE::Sampler::FilteringModes getSamplerMagFilter(RE::Sampler::Handle sampler);
 RE::Sampler::FilteringModes getSamplerMinFilter(RE::Sampler::Handle sampler);
 RE::Sampler::AddressingModes getSamplerUAddressing(RE::Sampler::Handle sampler);
 RE::Sampler::AddressingModes getSamplerVAddressing(RE::Sampler::Handle sampler);
+RE::Sampler::AddressingModes getSamplerWAddressing(RE::Sampler::Handle sampler);
+RE::Sampler::MipMapMode getSamplerMipMapMode(RE::Sampler::Handle sampler);
 void setSamplerMagFilter(RE::Sampler::Handle sampler,
 		RE::Sampler::FilteringModes mode);
 void setSamplerMinFilter(RE::Sampler::Handle sampler,

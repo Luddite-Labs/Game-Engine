@@ -14,7 +14,7 @@ void destroy();
 RE::Texture::Handle createTexture(uint32_t width, uint32_t height,
 		// TextureType type, ! maybe other texture supports in the future
 		RE::Texture::UsageFlags usage_flags,
-		RE::Texture::Format format);
+		RE::Texture::Format format, bool generate_mip_maps);
 void refTexture(RE::Texture::Handle texture);
 void destroyTexture(RE::Texture::Handle texture);
 uint32_t getTextureWidth(RE::Texture::Handle texture);

@@ -21,24 +21,29 @@ RE::Sampler::Handle createSampler(RE::Sampler::FilteringModes mag_filter,
 		RE::Sampler::FilteringModes min_filter,
 		RE::Sampler::AddressingModes u_addressing,
 		RE::Sampler::AddressingModes v_addressing,
-		RE::Sampler::AddressingModes w_addressing) {
+		RE::Sampler::AddressingModes w_addressing,
+		RE::Sampler::MipMapMode mip_map_mode) {
 	SDL_assert(m_GPU_device != nullptr);
-	RE::Sampler::Data sampler_data = { .mag_filter = mag_filter,
+	RE::Sampler::Data sampler_data = { 
+		.gpu_handle = nullptr ,
+		.mag_filter = mag_filter,
 		.min_filter = min_filter,
 		.u_addressing = u_addressing,
 		.v_addressing = v_addressing,
 		.w_addressing = w_addressing,
-		.gpu_handle = nullptr };
+		.mip_map_mode = mip_map_mode
+		};
 	SDL_GPUSamplerCreateInfo sampler_info = {
 		.min_filter = static_cast<SDL_GPUFilter>(sampler_data.min_filter),
 		.mag_filter = static_cast<SDL_GPUFilter>(sampler_data.mag_filter),
-		.mipmap_mode = SDL_GPU_SAMPLERMIPMAPMODE_LINEAR,
+		.mipmap_mode = static_cast<SDL_GPUSamplerMipmapMode>(sampler_data.mip_map_mode),
 		.address_mode_u =
 				static_cast<SDL_GPUSamplerAddressMode>(sampler_data.u_addressing),
 		.address_mode_v =
 				static_cast<SDL_GPUSamplerAddressMode>(sampler_data.v_addressing),
 		.address_mode_w =
 				static_cast<SDL_GPUSamplerAddressMode>(sampler_data.w_addressing),
+				.max_lod = 1000.f
 	};
 	sampler_data.gpu_handle = SDL_CreateGPUSampler(m_GPU_device, &sampler_info);
 	return sampler_storage.insert(sampler_data);
@@ -60,6 +65,12 @@ RE::Sampler::AddressingModes getSamplerUAddressing(RE::Sampler::Handle sampler) 
 }
 RE::Sampler::AddressingModes getSamplerVAddressing(RE::Sampler::Handle sampler) {
 	return sampler_storage.get(sampler).v_addressing;
+}
+RE::Sampler::AddressingModes getSamplerWAddressing(RE::Sampler::Handle sampler){
+	return sampler_storage.get(sampler).w_addressing;
+}
+RE::Sampler::MipMapMode getSamplerMipMapMode(RE::Sampler::Handle sampler){
+	return sampler_storage.get(sampler).mip_map_mode;
 }
 void setSamplerMagFilter(RE::Sampler::Handle sampler,
 		RE::Sampler::FilteringModes mode) {

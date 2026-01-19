@@ -113,13 +113,16 @@ Sampler::Handle create(
 		Sampler::FilteringModes min_filter = RE::Sampler::FilteringModes::NEAREST,
 		Sampler::AddressingModes u_addressing = RE::Sampler::AddressingModes::REPEAT,
 		Sampler::AddressingModes v_addressing = RE::Sampler::AddressingModes::REPEAT,
-		Sampler::AddressingModes w_addressing = RE::Sampler::AddressingModes::REPEAT);
+		Sampler::AddressingModes w_addressing = RE::Sampler::AddressingModes::REPEAT,
+		Sampler::MipMapMode mip_map_mode = RE::Sampler::MipMapMode::LINEAR);
 void ref(Sampler::Handle sampler);
 void destroy(Sampler::Handle sampler);
 Sampler::FilteringModes getMagFilter(Sampler::Handle sampler);
 Sampler::FilteringModes getMinFilter(Sampler::Handle sampler);
 Sampler::AddressingModes getUAddressing(Sampler::Handle sampler);
 Sampler::AddressingModes getVAddressing(Sampler::Handle sampler);
+Sampler::AddressingModes getWAddressing(Sampler::Handle sampler);
+Sampler::MipMapMode getMipMapMode(Sampler::Handle sampler);
 void setMagFilter(Sampler::Handle sampler,
 		Sampler::FilteringModes mode);
 void setMinFilter(Sampler::Handle sampler,
@@ -146,14 +149,14 @@ bool isValid(Shader::Handle shader);
 namespace Texture {
 Texture::Handle create(uint32_t width, uint32_t height,
 		Texture::UsageFlags usage_flags = Texture::UsageFlags::SAMPLER,
-		Texture::Format format = Texture::Format::R8G8B8A8_UNORM);
+		Texture::Format format = Texture::Format::R8G8B8A8_UNORM, bool generate_mip_maps = false);
 void ref(Texture::Handle texture);
 void destroy(Texture::Handle texture);
 uint32_t getWidth(Texture::Handle texture);
 uint32_t getHeight(Texture::Handle texture);
 Texture::Format getFormat(Texture::Handle texture);
 uint32_t getUsageFlags(Texture::Handle texture);
-Texture::Handle getTextureSampler(Texture::Handle texture);
+Sampler::Handle getSampler(Texture::Handle texture);
 void setWidth(Texture::Handle texture, uint32_t width);
 void setHeight(Texture::Handle texture, uint32_t height);
 void setFormat(Texture::Handle texture, Texture::Format format);

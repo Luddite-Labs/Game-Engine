@@ -10,8 +10,10 @@
 
 #ifdef _MSC_VER
 #define SLOT_MAP_FUNC_PRINT __FUNCTION__ // or __FUNCSIG__
-#else
+#elif __GNUC__
 #define SLOT_MAP_FUNC_PRINT __PRETTY_FUNCTION__
+#else 
+#define SLOT_MAP_FUNC_PRINT ""
 #endif
 #define CHUNK_SIZE 4096
 struct Slot {

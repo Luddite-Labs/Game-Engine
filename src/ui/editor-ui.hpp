@@ -58,7 +58,7 @@ void handleEditorCameraMovement(Transform &trs, RE::Camera::Shared camera, glm::
 	if (io.MouseDown[ImGuiMouseButton_Middle]) {
 		if (ImGui::IsKeyDown(ImGuiKey_LeftShift)) {
 			//! better solution needed
-			
+
 			float delta_x = camera_speed * (io.MouseDelta.x / content_region.x) * RE::Camera::getAspectRatio(camera.handle) * -1;
 			float delta_y = camera_speed * (io.MouseDelta.y / content_region.y); // invert
 			trs.translate += delta_x * camera_right_world + delta_y * camera_up_world;
@@ -166,6 +166,157 @@ void drawTexturePreview(const RE::Texture::Handle &texture,
 		ImGui::ImageWithBg(tex_ref, ImVec2(region_sz * zoom, region_sz * zoom), uv0,
 				uv1, ImVec4(0.0f, 0.0f, 0.0f, 1.0f));
 		ImGui::EndTooltip();
+	}
+	if (ImGui::TreeNode("Sampler")) {
+		RE::Sampler::Handle sampler = RE::Texture::getSampler(texture);
+		bool edit = false;
+		RE::Sampler::FilteringModes mag_filter = RE::Sampler::getMagFilter(sampler);
+		RE::Sampler::FilteringModes min_filter = RE::Sampler::getMinFilter(sampler);
+		RE::Sampler::AddressingModes u_addressing = RE::Sampler::getUAddressing(sampler);
+		RE::Sampler::AddressingModes v_addressing = RE::Sampler::getVAddressing(sampler);
+		RE::Sampler::AddressingModes w_addressing = RE::Sampler::getWAddressing(sampler);
+		RE::Sampler::MipMapMode mip_map_mode = RE::Sampler::getMipMapMode(sampler);
+		ImGui::PushID(0);
+		if (ImGui::BeginCombo("Mag Filter", getString(mag_filter))) {
+			if (ImGui::Selectable(getString(RE::Sampler::FilteringModes::LINEAR), mag_filter == RE::Sampler::FilteringModes::LINEAR)) {
+				edit = true;
+				mag_filter = RE::Sampler::FilteringModes::LINEAR;
+			}
+			if (mag_filter == RE::Sampler::FilteringModes::LINEAR) {
+				ImGui::SetItemDefaultFocus();
+			}
+			if (ImGui::Selectable(getString(RE::Sampler::FilteringModes::NEAREST), mag_filter == RE::Sampler::FilteringModes::NEAREST)) {
+				edit = true;
+				mag_filter = RE::Sampler::FilteringModes::NEAREST;
+			}
+			if (mag_filter == RE::Sampler::FilteringModes::NEAREST) {
+				ImGui::SetItemDefaultFocus();
+			}
+			ImGui::EndCombo();
+		}
+		ImGui::PopID();
+		ImGui::PushID(1);
+		if (ImGui::BeginCombo("Min Filter", getString(min_filter))) {
+			if (ImGui::Selectable(getString(RE::Sampler::FilteringModes::LINEAR), min_filter == RE::Sampler::FilteringModes::LINEAR)) {
+				edit = true;
+				min_filter = RE::Sampler::FilteringModes::LINEAR;
+			}
+			if (min_filter == RE::Sampler::FilteringModes::LINEAR) {
+				ImGui::SetItemDefaultFocus();
+			}
+			if (ImGui::Selectable(getString(RE::Sampler::FilteringModes::NEAREST), min_filter == RE::Sampler::FilteringModes::NEAREST)) {
+				edit = true;
+				min_filter = RE::Sampler::FilteringModes::NEAREST;
+			}
+			if (min_filter == RE::Sampler::FilteringModes::NEAREST) {
+				ImGui::SetItemDefaultFocus();
+			}
+			ImGui::EndCombo();
+		}
+		ImGui::PopID();
+		ImGui::PushID(2);
+		if (ImGui::BeginCombo("U Addressing", getString(u_addressing))) {
+			if (ImGui::Selectable(getString(RE::Sampler::AddressingModes::REPEAT), u_addressing == RE::Sampler::AddressingModes::REPEAT)) {
+				edit = true;
+				u_addressing = RE::Sampler::AddressingModes::REPEAT;
+			}
+			if (u_addressing == RE::Sampler::AddressingModes::REPEAT) {
+				ImGui::SetItemDefaultFocus();
+			}
+			if (ImGui::Selectable(getString(RE::Sampler::AddressingModes::CLAMP_TO_EDGE), u_addressing == RE::Sampler::AddressingModes::CLAMP_TO_EDGE)) {
+				edit = true;
+				u_addressing = RE::Sampler::AddressingModes::CLAMP_TO_EDGE;
+			}
+			if (u_addressing == RE::Sampler::AddressingModes::CLAMP_TO_EDGE) {
+				ImGui::SetItemDefaultFocus();
+			}
+			if (ImGui::Selectable(getString(RE::Sampler::AddressingModes::MIRRORED_REPEAT), u_addressing == RE::Sampler::AddressingModes::MIRRORED_REPEAT)) {
+				edit = true;
+				u_addressing = RE::Sampler::AddressingModes::MIRRORED_REPEAT;
+			}
+			if (u_addressing == RE::Sampler::AddressingModes::MIRRORED_REPEAT) {
+				ImGui::SetItemDefaultFocus();
+			}
+			ImGui::EndCombo();
+		}
+		ImGui::PopID();
+		ImGui::PushID(3);
+		if (ImGui::BeginCombo("V Addressing", getString(v_addressing))) {
+			if (ImGui::Selectable(getString(RE::Sampler::AddressingModes::REPEAT), v_addressing == RE::Sampler::AddressingModes::REPEAT)) {
+				edit = true;
+				v_addressing = RE::Sampler::AddressingModes::REPEAT;
+			}
+			if (v_addressing == RE::Sampler::AddressingModes::REPEAT) {
+				ImGui::SetItemDefaultFocus();
+			}
+			if (ImGui::Selectable(getString(RE::Sampler::AddressingModes::CLAMP_TO_EDGE), v_addressing == RE::Sampler::AddressingModes::CLAMP_TO_EDGE)) {
+				edit = true;
+				v_addressing = RE::Sampler::AddressingModes::CLAMP_TO_EDGE;
+			}
+			if (v_addressing == RE::Sampler::AddressingModes::CLAMP_TO_EDGE) {
+				ImGui::SetItemDefaultFocus();
+			}
+			if (ImGui::Selectable(getString(RE::Sampler::AddressingModes::MIRRORED_REPEAT), v_addressing == RE::Sampler::AddressingModes::MIRRORED_REPEAT)) {
+				edit = true;
+				v_addressing = RE::Sampler::AddressingModes::MIRRORED_REPEAT;
+			}
+			if (v_addressing == RE::Sampler::AddressingModes::MIRRORED_REPEAT) {
+				ImGui::SetItemDefaultFocus();
+			}
+			ImGui::EndCombo();
+		}
+		ImGui::PopID();
+		ImGui::PushID(4);
+		if (ImGui::BeginCombo("U Addressing", getString(w_addressing))) {
+			if (ImGui::Selectable(getString(RE::Sampler::AddressingModes::REPEAT), w_addressing == RE::Sampler::AddressingModes::REPEAT)) {
+				edit = true;
+				w_addressing = RE::Sampler::AddressingModes::REPEAT;
+			}
+			if (w_addressing == RE::Sampler::AddressingModes::REPEAT) {
+				ImGui::SetItemDefaultFocus();
+			}
+			if (ImGui::Selectable(getString(RE::Sampler::AddressingModes::CLAMP_TO_EDGE), w_addressing == RE::Sampler::AddressingModes::CLAMP_TO_EDGE)) {
+				edit = true;
+				w_addressing = RE::Sampler::AddressingModes::CLAMP_TO_EDGE;
+			}
+			if (w_addressing == RE::Sampler::AddressingModes::CLAMP_TO_EDGE) {
+				ImGui::SetItemDefaultFocus();
+			}
+			if (ImGui::Selectable(getString(RE::Sampler::AddressingModes::MIRRORED_REPEAT), w_addressing == RE::Sampler::AddressingModes::MIRRORED_REPEAT)) {
+				edit = true;
+				w_addressing = RE::Sampler::AddressingModes::MIRRORED_REPEAT;
+			}
+			if (w_addressing == RE::Sampler::AddressingModes::MIRRORED_REPEAT) {
+				ImGui::SetItemDefaultFocus();
+			}
+			ImGui::EndCombo();
+		}
+		ImGui::PopID();
+		ImGui::PushID(5);
+		if (ImGui::BeginCombo("Mip Map Mode", getString(mip_map_mode))) {
+			if (ImGui::Selectable(getString(RE::Sampler::MipMapMode::LINEAR), mip_map_mode == RE::Sampler::MipMapMode::LINEAR)) {
+				edit = true;
+				mip_map_mode = RE::Sampler::MipMapMode::LINEAR;
+			}
+			if (mip_map_mode == RE::Sampler::MipMapMode::LINEAR) {
+				ImGui::SetItemDefaultFocus();
+			}
+			if (ImGui::Selectable(getString(RE::Sampler::MipMapMode::NEAREST), mip_map_mode == RE::Sampler::MipMapMode::NEAREST)) {
+				edit = true;
+				mip_map_mode = RE::Sampler::MipMapMode::NEAREST;
+			}
+			if (mip_map_mode == RE::Sampler::MipMapMode::NEAREST) {
+				ImGui::SetItemDefaultFocus();
+			}
+			ImGui::EndCombo();
+		}
+		ImGui::PopID();
+		if (edit) {
+			LOG_INFO("Updating Sampler");
+			RE::Sampler::Shared new_sampler{ RE::Sampler::create(mag_filter, min_filter, u_addressing, v_addressing, w_addressing, mip_map_mode) };
+			RE::Texture::setSampler(texture, new_sampler.handle);
+		}
+		ImGui::TreePop();
 	}
 	ImGui::PopStyleVar();
 }

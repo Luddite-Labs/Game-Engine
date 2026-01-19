@@ -69,20 +69,25 @@ void enable_bitset_enum(Attributes);
 namespace Sampler {
 HANDLE();
 enum class AddressingModes : uint8_t {
-	REPEAT = SDL_GPU_SAMPLERADDRESSMODE_REPEAT,
-	MIRRORED_REPEAT = SDL_GPU_SAMPLERADDRESSMODE_MIRRORED_REPEAT,
-	CLAMP_TO_EDGE = SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE
+	REPEAT,
+	MIRRORED_REPEAT,
+	CLAMP_TO_EDGE
 };
-enum class FilteringModes : uint8_t { NEAREST = 0,
-	LINEAR = 1 };
+enum class FilteringModes : uint8_t { NEAREST,
+	LINEAR };
+enum class MipMapMode : uint8_t {
+	NEAREST,
+	LINEAR
+};
 
 struct Data {
+	SDL_GPUSampler *gpu_handle;
 	Sampler::FilteringModes mag_filter;
 	Sampler::FilteringModes min_filter;
 	Sampler::AddressingModes u_addressing;
 	Sampler::AddressingModes v_addressing;
 	Sampler::AddressingModes w_addressing;
-	SDL_GPUSampler *gpu_handle;
+	Sampler::MipMapMode mip_map_mode;
 };
 }; // namespace Sampler
 
@@ -91,10 +96,11 @@ HANDLE();
 
 enum class Format : uint8_t {
 	R8G8B8A8_UNORM = SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM,
-	R8G8B8A8_UNORM_SRGB=SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM_SRGB,
+	R8G8B8A8_UNORM_SRGB = SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM_SRGB,
 	D16_UNORM = SDL_GPU_TEXTUREFORMAT_D16_UNORM,
-	D24_UNORM= SDL_GPU_TEXTUREFORMAT_D24_UNORM,
-	D24_UNORM_S8_UINT= SDL_GPU_TEXTUREFORMAT_D24_UNORM_S8_UINT
+	D24_UNORM = SDL_GPU_TEXTUREFORMAT_D24_UNORM,
+	D24_UNORM_S8_UINT = SDL_GPU_TEXTUREFORMAT_D24_UNORM_S8_UINT,
+	D32_FLOAT = SDL_GPU_TEXTUREFORMAT_D32_FLOAT //! fix selection
 };
 enum class Type : uint8_t {
 	TEXTURE_2D = SDL_GPU_TEXTURETYPE_2D,
@@ -122,6 +128,7 @@ public:
 	uint32_t height;
 	Texture::Format format;
 	uint32_t usage_flags;
+	uint32_t mip_levels;
 };
 
 }; // namespace Texture
@@ -155,7 +162,7 @@ struct Data {
 	uint32_t index_count;
 	RE::Material::Handle material;
 	Data() : type(Type::TRIANGLELIST), attrs_data(), vert_count(0), index_count(0), material() {}
-	Data(const Data &other) : pipeline(other.pipeline),  type(other.type), vert_count(other.vert_count), index_count(other.index_count), material(other.material) {
+	Data(const Data &other) : pipeline(other.pipeline), type(other.type), vert_count(other.vert_count), index_count(other.index_count), material(other.material) {
 		for (uint32_t i = 0; i < static_cast<uint32_t>(Vertex::AttributeIndex::MAX); i++) {
 			attrs_data[i].cpu_buffer.swap(const_cast<Data &>(other).attrs_data[i].cpu_buffer);
 			attrs_data[i].gpu_buffer = other.attrs_data[i].gpu_buffer;
@@ -277,3 +284,35 @@ struct Arg {
 	AABB aabb;
 };
 }; // namespace RE::Mesh
+
+inline const char *getString(RE::Sampler::AddressingModes mode) {
+	switch (mode) {
+		case RE::Sampler::AddressingModes::REPEAT:
+			return "REPEAT";
+		case RE::Sampler::AddressingModes::MIRRORED_REPEAT:
+			return "MIRRORED_REPEAT";
+		case RE::Sampler::AddressingModes::CLAMP_TO_EDGE:
+			return "CLAMP_TO_EDGE";
+	}
+	return "";
+}
+
+inline const char *getString(RE::Sampler::MipMapMode mode) {
+	switch (mode) {
+		case RE::Sampler::MipMapMode::LINEAR:
+			return "LINEAR";
+		case RE::Sampler::MipMapMode::NEAREST:
+			return "NEAREST";
+	}
+	return "";
+}
+
+inline const char *getString(RE::Sampler::FilteringModes mode) {
+	switch (mode) {
+		case RE::Sampler::FilteringModes::LINEAR:
+			return "LINEAR";
+		case RE::Sampler::FilteringModes::NEAREST:
+			return "NEAREST";
+	}
+	return "";
+}
