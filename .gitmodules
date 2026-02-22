@@ -13,9 +13,6 @@
 [submodule "external/SDL_image"]
 	path = external/SDL_image
 	url = https://github.com/libsdl-org/SDL_image
-[submodule "external/SDL_shadercross"]
-	path = external/SDL_shadercross
-	url = https://github.com/libsdl-org/SDL_shadercross/
 [submodule "external/imgui"]
 	path = external/imgui
 	url = https://github.com/ocornut/imgui/
@@ -37,3 +34,6 @@
 [submodule "external/implot"]
 	path = external/implot
 	url = https://github.com/epezent/implot
+[submodule "external/slang"]
+	path = external/slang
+	url = https://github.com/shader-slang/slang

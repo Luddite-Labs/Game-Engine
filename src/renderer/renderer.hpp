@@ -18,7 +18,13 @@
 
 // Rendering engine - core renderer class and storage wrappers
 namespace RE {
+enum class CommandType{
+	Mesh,
+	UI
+};
+
 struct DrawCommand {
+	CommandType type;
 	glm::mat4x4 transform;
 	Mesh::Handle mesh;
 };
@@ -149,7 +155,9 @@ bool isValid(Shader::Handle shader);
 namespace Texture {
 Texture::Handle create(uint32_t width, uint32_t height,
 		Texture::UsageFlags usage_flags = Texture::UsageFlags::SAMPLER,
-		Texture::Format format = Texture::Format::R8G8B8A8_UNORM, bool generate_mip_maps = false);
+		Texture::Format format = Texture::Format::R8G8B8A8_UNORM,  
+		RE::Texture::SampleCount sample_count = RE::Texture::SampleCount::ONE,
+		bool generate_mip_maps = false);
 void ref(Texture::Handle texture);
 void destroy(Texture::Handle texture);
 uint32_t getWidth(Texture::Handle texture);

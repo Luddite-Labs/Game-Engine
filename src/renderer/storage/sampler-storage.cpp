@@ -24,15 +24,15 @@ RE::Sampler::Handle createSampler(RE::Sampler::FilteringModes mag_filter,
 		RE::Sampler::AddressingModes w_addressing,
 		RE::Sampler::MipMapMode mip_map_mode) {
 	SDL_assert(m_GPU_device != nullptr);
-	RE::Sampler::Data sampler_data = { 
-		.gpu_handle = nullptr ,
+	RE::Sampler::Data sampler_data = {
+		.gpu_handle = nullptr,
 		.mag_filter = mag_filter,
 		.min_filter = min_filter,
 		.u_addressing = u_addressing,
 		.v_addressing = v_addressing,
 		.w_addressing = w_addressing,
 		.mip_map_mode = mip_map_mode
-		};
+	};
 	SDL_GPUSamplerCreateInfo sampler_info = {
 		.min_filter = static_cast<SDL_GPUFilter>(sampler_data.min_filter),
 		.mag_filter = static_cast<SDL_GPUFilter>(sampler_data.mag_filter),
@@ -43,7 +43,9 @@ RE::Sampler::Handle createSampler(RE::Sampler::FilteringModes mag_filter,
 				static_cast<SDL_GPUSamplerAddressMode>(sampler_data.v_addressing),
 		.address_mode_w =
 				static_cast<SDL_GPUSamplerAddressMode>(sampler_data.w_addressing),
-				.max_lod = 1000.f
+		.max_anisotropy = 8.0f,
+		.max_lod = 1000.f,
+		.enable_anisotropy = true
 	};
 	sampler_data.gpu_handle = SDL_CreateGPUSampler(m_GPU_device, &sampler_info);
 	return sampler_storage.insert(sampler_data);
@@ -66,10 +68,10 @@ RE::Sampler::AddressingModes getSamplerUAddressing(RE::Sampler::Handle sampler) 
 RE::Sampler::AddressingModes getSamplerVAddressing(RE::Sampler::Handle sampler) {
 	return sampler_storage.get(sampler).v_addressing;
 }
-RE::Sampler::AddressingModes getSamplerWAddressing(RE::Sampler::Handle sampler){
+RE::Sampler::AddressingModes getSamplerWAddressing(RE::Sampler::Handle sampler) {
 	return sampler_storage.get(sampler).w_addressing;
 }
-RE::Sampler::MipMapMode getSamplerMipMapMode(RE::Sampler::Handle sampler){
+RE::Sampler::MipMapMode getSamplerMipMapMode(RE::Sampler::Handle sampler) {
 	return sampler_storage.get(sampler).mip_map_mode;
 }
 void setSamplerMagFilter(RE::Sampler::Handle sampler,
@@ -96,7 +98,7 @@ SDL_GPUSampler *getSamplerGPUHandle(RE::Sampler::Handle sampler) {
 	SDL_assert(sampler_storage.isValid(sampler));
 	return sampler_storage.get(sampler).gpu_handle;
 }
-bool isValid(RE::Sampler::Handle sampler){
+bool isValid(RE::Sampler::Handle sampler) {
 	return sampler_storage.isValid(sampler);
 }
 }; // namespace SaS

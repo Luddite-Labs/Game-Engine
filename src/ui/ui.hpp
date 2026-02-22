@@ -30,5 +30,5 @@ public:
   }
   SDL_AppResult processEvent(SDL_Event *event);
   void beginFrame();
-  void endFrame(SDL_Window* window);
+  ImDrawData* endFrame(SDL_Window* window);
 };

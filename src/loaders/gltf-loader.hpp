@@ -203,6 +203,7 @@ loadMaterials(const fastgltf::Asset &asset,
 							image.width, image.height,
 							RE::Texture::UsageFlags::SAMPLER | RE::Texture::UsageFlags::COLOR_TARGET,
 							RE::Texture::Format::R8G8B8A8_UNORM, // _SRGB later when imgui shader switched
+							RE::Texture::SampleCount::ONE,
 							generate_mip_maps)
 				};
 				RE::Texture::uploadBuffer(

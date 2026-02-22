@@ -15,7 +15,7 @@ void destroy() {}
 RE::Texture::Handle createTexture(uint32_t width, uint32_t height,
 		// TextureType type, ! maybe other texture supports in the future
 		RE::Texture::UsageFlags usage_flags,
-		RE::Texture::Format format, bool generate_mip_maps) {
+		RE::Texture::Format format, RE::Texture::SampleCount sample_count, bool generate_mip_maps) {
 	SDL_assert(m_GPU_device);
 	uint32_t mip_levels = 1;
 	if (generate_mip_maps) {
@@ -29,7 +29,7 @@ RE::Texture::Handle createTexture(uint32_t width, uint32_t height,
 		.height = height,
 		.layer_count_or_depth = 1,
 		.num_levels = mip_levels,
-		.sample_count = SDL_GPU_SAMPLECOUNT_1,
+		.sample_count = static_cast<SDL_GPUSampleCount>(sample_count),
 		.props = 0
 	};
 	SDL_GPUTexture *gpu_handle = SDL_CreateGPUTexture(m_GPU_device, &tex_info);

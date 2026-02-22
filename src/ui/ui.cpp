@@ -88,7 +88,7 @@ void UI::beginFrame() {
 	ImGui::ShowDemoWindow();
 }
 
-void UI::endFrame(SDL_Window *window) {
+ImDrawData* UI::endFrame(SDL_Window *window) {
 	// Rendering
 	ImGuiIO &io = ImGui::GetIO();
 	ImGui::Render();
@@ -135,4 +135,5 @@ void UI::endFrame(SDL_Window *window) {
 
 	// Submit the command buffer
 	SDL_SubmitGPUCommandBuffer(command_buffer);
+	return draw_data;
 }

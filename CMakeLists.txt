@@ -78,6 +78,7 @@ target_compile_definitions(${EXECUTABLE_NAME}
 add_subdirectory( external/glm )
 add_subdirectory( external/entt )
 add_subdirectory( external/fastgltf )
+add_subdirectory( external/slang )
 
 add_custom_command(TARGET ${EXECUTABLE_NAME} POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory
@@ -111,8 +112,8 @@ add_subdirectory(external/SDL EXCLUDE_FROM_ALL)
 set(SDLTTF_VENDORED ON) # tell SDL_ttf to build its own dependencies
 add_subdirectory(external/SDL_ttf EXCLUDE_FROM_ALL)	
 
-set(SDLSHADERCROSS_VENDORED ON)
-add_subdirectory(external/SDL_shadercross EXCLUDE_FROM_ALL)	
+# set(SDLSHADERCROSS_VENDORED ON)
+# add_subdirectory(external/SDL_shadercross EXCLUDE_FROM_ALL)	
 
 set(SDLMIXER_MIDI_NATIVE OFF)     # disable formats we don't use to make the build faster and smaller. Also some of these don't work on all platforms so you'll need to do some experimentation.
 set(SDLMIXER_GME OFF)
@@ -133,9 +134,10 @@ target_link_libraries(${EXECUTABLE_NAME} PUBLIC
 	SDL3_ttf::SDL3_ttf      # remove if you are not using SDL_ttf
     SDL3_mixer::SDL3_mixer  # remove if you are not using SDL_mixer
     SDL3_image::SDL3_image
-    SDL3_shadercross::SDL3_shadercross
+    # SDL3_shadercross::SDL3_shadercross
     EnTT::EnTT
     PRIVATE glm::glm-header-only
+    slang
     fastgltf
 )
 target_compile_definitions(${EXECUTABLE_NAME} PUBLIC SDL_MAIN_USE_CALLBACKS)

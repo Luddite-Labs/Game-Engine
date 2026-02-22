@@ -5,7 +5,6 @@
 
 #include <SDL3/SDL_filesystem.h>
 #include <SDL3/SDL_gpu.h>
-#include <SDL3_shadercross/SDL_shadercross.h>
 
 #include <renderer/storage/camera-storage.hpp>
 #include <renderer/storage/material-storage.hpp>
@@ -76,7 +75,7 @@ void regenerateDepthTexture(
 	}
 	m_renderer_data.depth_texture = TS::createTexture(width, height,
 			RE::Texture::UsageFlags::SAMPLER | RE::Texture::UsageFlags::DEPTH_STENCIL_TARGET,
-			RE::Texture::Format::D24_UNORM, false);
+			RE::Texture::Format::D24_UNORM, RE::Texture::SampleCount::ONE, false);
 }
 
 bool isMeshInViewFrustum(RE::Mesh::Handle mesh, glm::mat4x4 viewProj) {
@@ -96,7 +95,7 @@ void init() {
 	MS::init(m_GPU_device);
 	m_renderer_data.dummy_texture = TS::createTexture(1, 1,
 			RE::Texture::UsageFlags::SAMPLER,
-			RE::Texture::Format::R8G8B8A8_UNORM, false);
+			RE::Texture::Format::R8G8B8A8_UNORM, RE::Texture::SampleCount::ONE, false);
 	TS::uploadBufferToTexture(m_renderer_data.dummy_texture,
 			std::shared_ptr<uint8_t>(new uint8_t[4]{ 255, 255, 255, 255 },
 					std::default_delete<uint8_t[]>()),
@@ -110,7 +109,7 @@ void init() {
 			RE::Sampler::MipMapMode::LINEAR);
 	m_renderer_data.depth_texture = TS::createTexture(1, 1,
 			RE::Texture::UsageFlags::SAMPLER | RE::Texture::UsageFlags::DEPTH_STENCIL_TARGET,
-			RE::Texture::Format::D24_UNORM, false);
+			RE::Texture::Format::D24_UNORM, RE::Texture::SampleCount::ONE, false);
 	m_renderer_data.dummy_material = MaS::createMaterial();
 }
 
@@ -568,9 +567,10 @@ namespace Texture {
 Texture::Handle create(
 		uint32_t width, uint32_t height,
 		Texture::UsageFlags usage_flags,
-		Texture::Format format,
+		Texture::Format format, 
+		RE::Texture::SampleCount sample_count,
 		bool generate_mip_maps) {
-	return TS::createTexture(width, height, usage_flags, format, generate_mip_maps);
+	return TS::createTexture(width, height, usage_flags, format,  RE::Texture::SampleCount::ONE,generate_mip_maps);
 }
 void ref(Texture::Handle texture) {
 	TS::refTexture(texture);

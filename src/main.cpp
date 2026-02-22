@@ -51,7 +51,7 @@ void traverseRootNode(Scene &scene, entt::entity node,
 
 	if (scene.nodes.all_of<RenderableMesh>(node)) {
 		auto &renderable = scene.nodes.get<RenderableMesh>(node);
-		draw_commands.emplace_back(global_transform, renderable.mesh.handle);
+		draw_commands.emplace_back(RE::CommandType::Mesh, global_transform, renderable.mesh.handle);
 	}
 
 	if (scene.nodes.all_of<fastgltf::MaybeSmallVector<Child>>(node)) {
@@ -120,7 +120,8 @@ SDL_AppResult SDL_AppInit(void **app_state, int argc, char *argv[]) {
 	*app_state = new AppContext{
 		.render_target = RE::Texture::Shared{ RE::Texture::create(1920, 1080,
 				RE::Texture::UsageFlags::COLOR_TARGET |
-						RE::Texture::UsageFlags::SAMPLER, RE::Texture::Format::R8G8B8A8_UNORM) },//! not srgb since imgui renders incorrectly
+						RE::Texture::UsageFlags::SAMPLER,
+				RE::Texture::Format::R8G8B8A8_UNORM) }, //! not srgb since imgui renders incorrectly
 		.renderer_options =
 				RE::Options{ .clear_color = glm::vec4(0.1f, 0.1f, 0.1f, 1.0f) },
 		.scene_camera = scene_camera,
@@ -129,7 +130,7 @@ SDL_AppResult SDL_AppInit(void **app_state, int argc, char *argv[]) {
 	auto &camera_transform = static_cast<AppContext *>(*app_state)->camera_transform;
 	camera_transform.translate = { -10, 5, 10 };
 	auto dir = glm::normalize(camera_transform.translate);
-	camera_transform.rotate = glm::quatLookAt(-dir, glm::vec3{ 0, 1, 0});
+	camera_transform.rotate = glm::quatLookAt(-dir, glm::vec3{ 0, 1, 0 });
 	camera_transform.scale = glm::vec3{ 1, 1, 1 };
 	util::setFileLogging(GAME_ENGINE_BUILD_DIR "debug.log", true);
 	LOG_INFO("Application started successfully!");
@@ -159,6 +160,9 @@ SDL_AppResult SDL_AppIterate(void *app_state) {
 	UI::getSingleton()->beginFrame();
 	drawToolBar(app->window);
 	glm::vec2 content_region{};
+	drawRenderResult(app->render_target, app->camera_transform, app->scene_camera);
+	drawRenderOptions(app->renderer_options);
+	drawSceneGraph(scene_manager);
 	if (0 <= scene_manager->active_scene_index &&
 			scene_manager->active_scene_index < scene_manager->scenes.size()) {
 		auto &scene = scene_manager->scenes[scene_manager->active_scene_index];
@@ -171,9 +175,6 @@ SDL_AppResult SDL_AppIterate(void *app_state) {
 				app->scene_camera.handle,
 				glm::inverse(getTransformMatFromTRS(app->camera_transform)), draw_commands);
 	}
-	drawRenderResult(app->render_target, app->camera_transform, app->scene_camera);
-	drawRenderOptions(app->renderer_options);
-	drawSceneGraph(scene_manager);
 	UI::getSingleton()->endFrame(app->window);
 	return app->app_status;
 }

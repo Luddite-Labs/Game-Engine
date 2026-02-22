@@ -2,7 +2,6 @@
 
 #include <SDL3/SDL_assert.h>
 #include <SDL3/SDL_stdinc.h>
-#include <SDL3_shadercross/SDL_shadercross.h>
 
 #include <misc/log.hpp>
 #include <misc/slot-map.hpp>

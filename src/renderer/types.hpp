@@ -93,6 +93,12 @@ struct Data {
 
 namespace Texture {
 HANDLE();
+enum class SampleCount : uint8_t {
+	ONE,
+	TWO,
+	FOUR,
+	EIGHT
+};
 
 enum class Format : uint8_t {
 	R8G8B8A8_UNORM = SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM,

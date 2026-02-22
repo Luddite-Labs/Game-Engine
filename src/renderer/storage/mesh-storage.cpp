@@ -98,7 +98,7 @@ void loadTriangleList(RE::Mesh::Primitive::Arg &primitive_data, RE::Mesh::Primit
 	};
 
 	options.vert_shader = ShS::createShader(
-			GAME_ENGINE_DEFAULT_SHADER_DIR "/base.vert.hlsl", vert_shader_defines);
+			GAME_ENGINE_DEFAULT_SHADER_DIR "/base.vert.slang", vert_shader_defines);
 
 	std::vector<RE::Shader::Definition> frag_shader_defines;
 	if ((material_options & RE::Material::Options::COLOR_TEXTURE) == RE::Material::Options::COLOR_TEXTURE) {
@@ -120,7 +120,7 @@ void loadTriangleList(RE::Mesh::Primitive::Arg &primitive_data, RE::Mesh::Primit
 		frag_shader_defines.push_back({ .name = frag_option_define_map[RE::Material::Options::COLOR_FACTOR_USED], .value = nullptr });
 	}
 	options.frag_shader =
-			ShS::createShader(GAME_ENGINE_DEFAULT_SHADER_DIR "/base.frag.hlsl", frag_shader_defines);
+			ShS::createShader(GAME_ENGINE_DEFAULT_SHADER_DIR "/base.frag.slang", frag_shader_defines);
 
 	primitive.pipeline = PS::createPipeline(options);
 }

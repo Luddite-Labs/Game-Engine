@@ -18,8 +18,8 @@ void destroy() {}
 // Material
 RE::Material::Handle createMaterial() {
 	RE::Material::Data default_material{};
-	default_material.frag_shader_path = GAME_ENGINE_DEFAULT_SHADER_DIR "base.vert.hlsl";
-	default_material.vert_shader_path = GAME_ENGINE_DEFAULT_SHADER_DIR "base.frag.hlsl";
+	default_material.frag_shader_path = GAME_ENGINE_DEFAULT_SHADER_DIR "base.vert.slang";
+	default_material.vert_shader_path = GAME_ENGINE_DEFAULT_SHADER_DIR "base.frag.slang";
 	return material_storage.insert(default_material);
 }
 void refMaterial(RE::Material::Handle material) {

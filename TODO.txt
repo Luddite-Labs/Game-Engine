@@ -4,3 +4,4 @@
 [/] Texture display
 [/] Fixing error in slot map
 [ ] Pipeline and shader caching
+[ ] Slang build issues
