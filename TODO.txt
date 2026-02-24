@@ -3,5 +3,6 @@
 [/] Node graph loading 
 [/] Texture display
 [/] Fixing error in slot map
+[/] Slang build issues
 [ ] Pipeline and shader caching
-[ ] Slang build issues
+[ ] Detect location and correctly bind standard inputs(position, normal, etc.)

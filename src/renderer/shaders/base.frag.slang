@@ -27,10 +27,10 @@ struct Material {
 }
 
 struct Input {
-	vector<float, 4> color 	  : TEXCOORD0;
-	vector<float, 3> normal   : TEXCOORD1;
+	vector<float, 4> color;
+	vector<float, 3> normal;
 	vector<float, 4> position : SV_Position;
-	vector<float, 2> uv 	  : TEXCOORD2;
+	vector<float, 2> uv;
 };
 
 struct Output {

@@ -13,19 +13,19 @@ struct TransformMatrices{
 
 struct Input
 {
-    vector<float, 3> position : TEXCOORD0;
-    vector<float, 3> normal   : TEXCOORD1;
-    vector<float, 3> tangent  : TEXCOORD2;
-    vector<float, 3> color    : TEXCOORD3;
-    vector<float, 2> uv       : TEXCOORD4;
-    uint             index    : SV_VertexID;
+    vector<float, 3> position;
+    vector<float, 3> normal;
+    vector<float, 3> tangent;
+    vector<float, 3> color;
+    vector<float, 2> uv;
+    uint index : SV_VertexID;
 };
 struct Output
 {
-	vector<float, 4> color    : TEXCOORD0;
-	vector<float, 3> normal   : TEXCOORD1;
+	vector<float, 4> color;
+	vector<float, 3> normal;
 	vector<float, 4> position : SV_Position;
-	vector<float, 2> uv       : TEXCOORD2;
+	vector<float, 2> uv;
 };
 
 ParameterBlock<PlaceholderBlock> placeholderParamBlock;
