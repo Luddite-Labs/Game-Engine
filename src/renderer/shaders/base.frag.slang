@@ -1,48 +1,63 @@
-cbuffer material : register(b0, space3) {
-	float4 color_factor;
-	float3 emissive_factor;
+extern static const bool COLOR_FACTOR_USED   = false;
+extern static const bool COLOR_TEXTURE_USED  = false;
+extern static const bool NORMAL_TEXTURE_USED = false;
+
+struct PlaceholderBlock {
+	float pad;
+};
+
+struct TexturesBuffers {
+	Texture2D<vector<float,4>> color_texture;
+	SamplerState color_sampler;
+	Texture2D<vector<float, 4>> emisssive_texture;
+	SamplerState emisssive_sampler;
+	Texture2D<vector<float, 3>> normal_texture ;
+	SamplerState normal_sampler;
+	Texture2D<vector<float, 4>> metallic_roughness_texture;
+	SamplerState metallic_roughness_sampler;
+	Texture2D<vector<float, 4>> occlusion_texture;
+	SamplerState occlusion_sampler;
+}
+struct Material {
+	vector<float, 4> color_factor;
+	vector<float, 3> emissive_factor;
 	float normal_scale;
 	float metallic_factor;
 	float roughness_factor;
 }
 
 struct Input {
-	float4 color : TEXCOORD0;
-	float3 normal : TEXCOORD1;
-	float4 position : SV_Position;
-	float2 uv : TEXCOORD2;
+	vector<float, 4> color 	  : TEXCOORD0;
+	vector<float, 3> normal   : TEXCOORD1;
+	vector<float, 4> position : SV_Position;
+	vector<float, 2> uv 	  : TEXCOORD2;
 };
 
 struct Output {
-	float4 color : SV_Target0;
+	vector<float, 4> color : SV_Target0;
 };
 
-Texture2D<float4> color_texture : register(t0, space2);
-SamplerState color_sampler : register(s0, space2);
-Texture2D<float4> emisssive_texture : register(t1, space2);
-SamplerState emisssive_sampler : register(s1, space2);
-Texture2D<float3> normal_texture : register(t2, space2);
-SamplerState normal_sampler : register(s2, space2);
-Texture2D<float4> metallic_roughness_texture : register(t3, space2);
-SamplerState metallic_roughness_sampler : register(s3, space2);
-Texture2D<float4> occlusion_texture : register(t4, space2);
-SamplerState occlusion_sampler : register(s4, space2);
+ParameterBlock<PlaceholderBlock> placeholderParamBlock1;
+ParameterBlock<PlaceholderBlock> placeholderParamBlock2;
+ParameterBlock<TexturesBuffers> texturesBuffers;
+ParameterBlock<Material> material;
 
 [shader("fragment")]
 Output main(Input input) {
 	Output output;
-#ifdef COLOR_FACTOR_USED
-#ifdef COLOR_TEXTURE_USED
-	input.color = color_texture.Sample(color_sampler, input.uv) * color_factor;
-#else
-	input.color = color_factor;
-#endif
-#endif
-#ifdef NORMAL_TEXTURE_USED
-	input.normal = normal_texture.Sample(normal_sampler, input.uv) * normal_scale;
-#else
-	input.normal = normalize(input.normal);
-#endif
-	output.color = input.color; // float4(dot(input.normal, normalize(float3(1.0f, 1.0f, 0.0f))) * input.color.xyz, 1.0f);
+	if (COLOR_FACTOR_USED) {
+		if (COLOR_TEXTURE_USED) {
+			input.color = texturesBuffers.color_texture.Sample(texturesBuffers.color_sampler, input.uv) * material.color_factor;
+		}
+	else {
+			input.color = material.color_factor;}
+	}
+	if (NORMAL_TEXTURE_USED) {
+		input.normal = texturesBuffers.normal_texture.Sample(texturesBuffers.normal_sampler, input.uv) * material.normal_scale;
+	}
+	else{
+		input.normal = normalize(input.normal);
+	}
+	output.color = input.color; 
 	return output;
 }
