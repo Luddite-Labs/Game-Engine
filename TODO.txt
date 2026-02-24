@@ -5,4 +5,4 @@
 [/] Fixing error in slot map
 [/] Slang build issues
 [ ] Pipeline and shader caching
-[ ] Detect location and correctly bind standard inputs(position, normal, etc.)
+[ ] Detect location and correctly bind standard inputs(position, normal, textures etc.)
