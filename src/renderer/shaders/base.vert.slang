@@ -3,12 +3,16 @@ extern static const bool COLOR_USED = false;
 extern static const bool POSITION_USED = false;
 extern static const bool NORMAL_USED = false;
 
-struct PlaceholderBlock {
-	float pad;
-};
 struct TransformMatrices{
 	matrix<float, 4, 4> model_view;
 	matrix<float, 4, 4> proj;
+};
+
+struct TexturesBuffers { // set 0: Sampled textures, followed by storage textures, followed by storage buffers
+	float pad; // unused pad in order to consume descriptor set and align shader params to SDL expected layout
+};
+struct UniformBuffers { // set 1: Uniform buffers
+	TransformMatrices transformMatrices;
 };
 
 struct Input
@@ -28,13 +32,13 @@ struct Output
 	vector<float, 2> uv;
 };
 
-ParameterBlock<PlaceholderBlock> placeholderParamBlock;
-ParameterBlock<TransformMatrices> transformMatrices;
+ParameterBlock<TexturesBuffers> TB;
+ParameterBlock<UniformBuffers> UB;
 
 [shader("vertex")]
 Output main(Input input)
 {
-	matrix<float, 4, 4> model_view_proj = mul(transformMatrices.model_view, transformMatrices.proj);
+	matrix<float, 4, 4> model_view_proj = mul(UB.transformMatrices.model_view, UB.transformMatrices.proj);
 	Output output;
 	if (UV_USED) {
 		output.uv = input.uv;

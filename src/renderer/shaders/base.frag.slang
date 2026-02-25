@@ -6,7 +6,15 @@ struct PlaceholderBlock {
 	float pad;
 };
 
-struct TexturesBuffers {
+struct Material {
+	vector<float, 4> color_factor;
+	vector<float, 3> emissive_factor;
+	float normal_scale;
+	float metallic_factor;
+	float roughness_factor;
+};
+
+struct TexturesBuffers { // set 2: Sampled textures, followed by storage textures, followed by storage buffers
 	Texture2D<vector<float,4>> color_texture;
 	SamplerState color_sampler;
 	Texture2D<vector<float, 4>> emisssive_texture;
@@ -17,14 +25,12 @@ struct TexturesBuffers {
 	SamplerState metallic_roughness_sampler;
 	Texture2D<vector<float, 4>> occlusion_texture;
 	SamplerState occlusion_sampler;
-}
-struct Material {
-	vector<float, 4> color_factor;
-	vector<float, 3> emissive_factor;
-	float normal_scale;
-	float metallic_factor;
-	float roughness_factor;
-}
+};
+
+// set 3: Uniform buffers
+struct UniformBuffer {
+	Material material;
+};
 
 struct Input {
 	vector<float, 4> color;
@@ -37,23 +43,23 @@ struct Output {
 	vector<float, 4> color : SV_Target0;
 };
 
-ParameterBlock<PlaceholderBlock> placeholderParamBlock1;
-ParameterBlock<PlaceholderBlock> placeholderParamBlock2;
-ParameterBlock<TexturesBuffers> texturesBuffers;
-ParameterBlock<Material> material;
+ParameterBlock<PlaceholderBlock> placeholderParamBlock1; // unused blocks to align params to SDL expected layout
+ParameterBlock<PlaceholderBlock> placeholderParamBlock2; // unused blocks to align params to SDL expected layout
+ParameterBlock<TexturesBuffers> TB;
+ParameterBlock<UniformBuffer> UB;
 
 [shader("fragment")]
 Output main(Input input) {
 	Output output;
 	if (COLOR_FACTOR_USED) {
 		if (COLOR_TEXTURE_USED) {
-			input.color = texturesBuffers.color_texture.Sample(texturesBuffers.color_sampler, input.uv) * material.color_factor;
+			input.color = TB.color_texture.Sample(TB.color_sampler, input.uv) * UB.material.color_factor;
 		}
 	else {
-			input.color = material.color_factor;}
+			input.color = UB.material.color_factor;}
 	}
 	if (NORMAL_TEXTURE_USED) {
-		input.normal = texturesBuffers.normal_texture.Sample(texturesBuffers.normal_sampler, input.uv) * material.normal_scale;
+		input.normal = TB.normal_texture.Sample(TB.normal_sampler, input.uv) * UB.material.normal_scale;
 	}
 	else{
 		input.normal = normalize(input.normal);
