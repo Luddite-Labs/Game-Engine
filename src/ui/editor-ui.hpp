@@ -116,13 +116,47 @@ void drawRenderResult(
 void drawRenderOptions(RE::Options &options) {
 	ImGuiIO &io = ImGui::GetIO();
 	ImGui::Begin("Renderer Options");
-	ImGui::ColorEdit4("Clear Color:",
-			glm::value_ptr(options.clear_color));
-	static float f = 0.0f;
-	static int counter = 0;
-
 	ImGui::Text("Application average %.3f ms/frame (%.1f FPS)",
 			1000.0f / io.Framerate, io.Framerate);
+	ImGui::ColorEdit4("Clear Color:",
+			glm::value_ptr(options.clear_color));
+	if (ImGui::BeginCombo("Layers", getString(options.layers))) {
+		if (ImGui::Selectable("NONE", options.layers == RE::Layers::NONE)){
+			options.layers = RE::Layers::NONE;
+		}
+		if (ImGui::Selectable("ALBEDO", options.layers == RE::Layers::ALBEDO)){
+			options.layers = RE::Layers::ALBEDO;
+		}
+		if (ImGui::Selectable("NORMAL", options.layers == RE::Layers::NORMAL)){
+			options.layers = RE::Layers::NORMAL;
+		}
+		if (ImGui::Selectable("METALLIC", options.layers == RE::Layers::METALLIC)){
+			options.layers = RE::Layers::METALLIC;
+		}
+		if (ImGui::Selectable("ROUGHNESS", options.layers == RE::Layers::ROUGHNESS)){
+			options.layers = RE::Layers::ROUGHNESS;
+		}
+		if (ImGui::Selectable("EMISSIVE", options.layers == RE::Layers::EMISSIVE)){
+			options.layers = RE::Layers::EMISSIVE;
+		}
+		if (ImGui::Selectable("OCCLUSION", options.layers == RE::Layers::OCCLUSION)){
+			options.layers = RE::Layers::OCCLUSION;
+		}
+		if (ImGui::Selectable("SPECULAR", options.layers == RE::Layers::SPECULAR)){
+			options.layers = RE::Layers::SPECULAR;
+		}
+		if (ImGui::Selectable("DIFFUSE", options.layers == RE::Layers::DIFFUSE)){
+			options.layers = RE::Layers::DIFFUSE;
+		}
+		if (ImGui::Selectable("DIELECTRIC", options.layers == RE::Layers::DIELECTRIC)){
+			options.layers = RE::Layers::DIELECTRIC;
+		}
+		if (ImGui::Selectable("METALLIC_BRDF", options.layers == RE::Layers::METALLIC_BRDF)){
+			options.layers = RE::Layers::METALLIC_BRDF;
+		}			
+		
+		ImGui::EndCombo();
+	}
 	ImGui::End();
 }
 
@@ -167,7 +201,7 @@ void drawTexturePreview(const RE::Texture::Handle &texture,
 				uv1, ImVec4(0.0f, 0.0f, 0.0f, 1.0f));
 		ImGui::EndTooltip();
 	}
-	if (ImGui::TreeNode("Sampler")) {
+	if (ImGui::TreeNode(("Sampler##" + texture_name).c_str())) {
 		RE::Sampler::Handle sampler = RE::Texture::getSampler(texture);
 		bool edit = false;
 		RE::Sampler::FilteringModes mag_filter = RE::Sampler::getMagFilter(sampler);
@@ -366,13 +400,13 @@ void drawComponent(const RE::Material::Handle &component) {
 		drawTexturePreview(RE::Material::getEmissiveTexture(component), "Emissive Texture");
 	}
 	if (RE::Texture::isValid(RE::Material::getNormalTexture(component))) {
-		drawTexturePreview(RE::Material::getNormalTexture(component), "Emissive Texture");
+		drawTexturePreview(RE::Material::getNormalTexture(component), "Normal Texture");
 	}
 	if (RE::Texture::isValid(RE::Material::getOcclusionTexture(component))) {
-		drawTexturePreview(RE::Material::getOcclusionTexture(component), "Emissive Texture");
+		drawTexturePreview(RE::Material::getOcclusionTexture(component), "Occlusion Texture");
 	}
 	if (RE::Texture::isValid(RE::Material::getMetallicRoughnessTexture(component))) {
-		drawTexturePreview(RE::Material::getMetallicRoughnessTexture(component), "Emissive Texture");
+		drawTexturePreview(RE::Material::getMetallicRoughnessTexture(component), "Metallic Roughness Texture");
 	}
 }
 

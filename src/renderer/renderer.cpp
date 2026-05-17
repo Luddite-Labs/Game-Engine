@@ -7,6 +7,7 @@
 #include <SDL3/SDL_gpu.h>
 
 #include <renderer/storage/camera-storage.hpp>
+#include <renderer/storage/light-storage.hpp>
 #include <renderer/storage/material-storage.hpp>
 #include <renderer/storage/mesh-storage.hpp>
 #include <renderer/storage/pipeline-storage.hpp>
@@ -32,7 +33,8 @@
 
 namespace {
 struct TransformMatrices {
-	glm::mat4x4 modelView;
+	glm::mat4x4 model;
+	glm::mat4x4 view;
 	glm::mat4x4 proj;
 };
 
@@ -48,6 +50,19 @@ struct RendererData {
 	RE::Texture::Handle depth_texture;
 	RE::Sampler::Handle dummy_sampler;
 	RE::Material::Handle dummy_material;
+};
+
+struct VertexUniformBuffer {
+	TransformMatrices transform_matrices;
+	RE::Layers layers;
+	float padding[3];
+};
+
+struct FragmentUniformBuffer {
+	RE::Material::Factors material;
+	glm::mat4x4 inverted_camera_matrix;
+	RE::Layers layers;
+	float padding[3];
 };
 
 SDL_Window *m_window = nullptr;
@@ -154,8 +169,15 @@ void drawToTexture(const RE::Options &renderer_options,
 	if (draw_commands.size() == 0) {
 		return;
 	}
-	TransformMatrices transform_matrices;
-	transform_matrices.proj = getProjectionMatrix(camera);
+	FragmentUniformBuffer fragment_uniform_buffer{};
+	VertexUniformBuffer vertex_uniform_buffer{};
+
+	fragment_uniform_buffer.layers = renderer_options.layers;
+	vertex_uniform_buffer.layers = renderer_options.layers;
+
+	vertex_uniform_buffer.transform_matrices.proj = getProjectionMatrix(camera);
+	vertex_uniform_buffer.transform_matrices.view = camera_transform;
+	fragment_uniform_buffer.inverted_camera_matrix = glm::inverse(camera_transform);
 	if (TS::getTextureWidth(target_texture) != TS::getTextureWidth(m_renderer_data.depth_texture) ||
 			TS::getTextureHeight(target_texture) != TS::getTextureHeight(m_renderer_data.depth_texture)) {
 		regenerateDepthTexture(
@@ -166,7 +188,7 @@ void drawToTexture(const RE::Options &renderer_options,
 	std::vector<PrimitiveRenderInfo> primitives;
 
 	for (const auto draw_command : draw_commands) {
-		if (not isMeshInViewFrustum(draw_command.mesh, transform_matrices.proj * camera_transform)) {
+		if (not isMeshInViewFrustum(draw_command.mesh, vertex_uniform_buffer.transform_matrices.proj * camera_transform)) {
 			continue;
 		}
 		const auto &mesh_primitives = MS::getMeshPrimitives(draw_command.mesh);
@@ -218,12 +240,13 @@ void drawToTexture(const RE::Options &renderer_options,
 	};
 	SDL_GPURenderPass *render_pass = SDL_BeginGPURenderPass(
 			command_buffer, color_target_infos, 1, &depth_stencil_target_info);
-	for (const auto [transform, primitive, pipeline, material] : primitives) {
+	for (const auto& [transform, primitive, pipeline, material] : primitives) {
 		//! group mesh by material
 		if (MaS::isValid(primitive->material)) {
 			const auto material_factors = MaS::getMaterialFactors(primitive->material);
-			SDL_PushGPUFragmentUniformData(command_buffer, 0, &material_factors,
-					sizeof(RE::Material::Factors));
+			fragment_uniform_buffer.material = material_factors;
+			SDL_PushGPUFragmentUniformData(command_buffer, 0, &fragment_uniform_buffer,
+					sizeof(fragment_uniform_buffer));
 			std::vector<SDL_GPUTextureSamplerBinding> sampler_bindings;
 			sampler_bindings.push_back({ .texture = TS::getTextureGPUHandle(m_renderer_data.dummy_texture),
 					.sampler = SaS::getSamplerGPUHandle(m_renderer_data.dummy_sampler) });
@@ -263,9 +286,9 @@ void drawToTexture(const RE::Options &renderer_options,
 			SDL_BindGPUFragmentSamplers(render_pass, 0, sampler_bindings.data(),
 					sampler_bindings.size());
 		}
-		transform_matrices.modelView = camera_transform * transform;
-		SDL_PushGPUVertexUniformData(command_buffer, 0, &transform_matrices,
-				sizeof(transform_matrices));
+		vertex_uniform_buffer.transform_matrices.model = transform;
+		SDL_PushGPUVertexUniformData(command_buffer, 0, &vertex_uniform_buffer,
+			sizeof(vertex_uniform_buffer));
 
 		bool has_index_data = false;
 		for (uint32_t i = 0;
@@ -520,10 +543,10 @@ RE::Sampler::AddressingModes getUAddressing(RE::Sampler::Handle sampler) {
 RE::Sampler::AddressingModes getVAddressing(RE::Sampler::Handle sampler) {
 	return SaS::getSamplerVAddressing(sampler);
 }
-Sampler::AddressingModes getWAddressing(Sampler::Handle sampler){
+Sampler::AddressingModes getWAddressing(Sampler::Handle sampler) {
 	return SaS::getSamplerWAddressing(sampler);
 }
-Sampler::MipMapMode getMipMapMode(Sampler::Handle sampler){
+Sampler::MipMapMode getMipMapMode(Sampler::Handle sampler) {
 	return SaS::getSamplerMipMapMode(sampler);
 }
 void setMagFilter(RE::Sampler::Handle sampler, RE::Sampler::FilteringModes mode) {
@@ -567,10 +590,10 @@ namespace Texture {
 Texture::Handle create(
 		uint32_t width, uint32_t height,
 		Texture::UsageFlags usage_flags,
-		Texture::Format format, 
+		Texture::Format format,
 		RE::Texture::SampleCount sample_count,
 		bool generate_mip_maps) {
-	return TS::createTexture(width, height, usage_flags, format,  RE::Texture::SampleCount::ONE,generate_mip_maps);
+	return TS::createTexture(width, height, usage_flags, format, RE::Texture::SampleCount::ONE, generate_mip_maps);
 }
 void ref(Texture::Handle texture) {
 	TS::refTexture(texture);
@@ -615,4 +638,31 @@ bool isValid(RE::Texture::Handle texture) {
 	return TS::isValid(texture);
 }
 }; // namespace Texture
+
+namespace Light {
+void setPosition(Light::Handle light, const glm::vec3 &position) {
+	LS::setPosition(light, position);
+}
+void setColor(Light::Handle light, const glm::vec3 &color) {
+	LS::setColor(light, color);
+}
+glm::vec3 getPosition(Light::Handle light) {
+	return LS::getPosition(light);
+}
+glm::vec3 getColor(Light::Handle light) {
+	return LS::getColor(light);
+}
+Light::Handle create() {
+	return LS::createLight();
+}
+void ref(Light::Handle light) {
+	LS::refLight(light);
+}
+void destroy(Light::Handle light) {
+	LS::destroyLight(light);
+}
+bool isValid(Light::Handle light) {
+	return LS::isValid(light);
+}
+}; // namespace Light
 }; // namespace RE

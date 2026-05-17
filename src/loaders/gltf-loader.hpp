@@ -202,7 +202,7 @@ loadMaterials(const fastgltf::Asset &asset,
 					RE::Texture::create(
 							image.width, image.height,
 							RE::Texture::UsageFlags::SAMPLER | RE::Texture::UsageFlags::COLOR_TARGET,
-							RE::Texture::Format::R8G8B8A8_UNORM, // _SRGB later when imgui shader switched
+							RE::Texture::Format::R8G8B8A8_UNORM_SRGB,
 							RE::Texture::SampleCount::ONE,
 							generate_mip_maps)
 				};
@@ -220,7 +220,7 @@ loadMaterials(const fastgltf::Asset &asset,
 			}
 		}
 		if (asset_material.normalTexture.has_value()) {
-			auto &asset_texture = asset.textures[asset_material.pbrData.baseColorTexture.value().textureIndex];
+			auto &asset_texture = asset.textures[asset_material.normalTexture.value().textureIndex];
 			if (asset_texture.imageIndex.has_value()) {
 				const auto &image = images[asset_texture.imageIndex.value()];
 				RE::Texture::Shared texture{
@@ -243,7 +243,7 @@ loadMaterials(const fastgltf::Asset &asset,
 			}
 		}
 		if (asset_material.emissiveTexture.has_value()) {
-			auto &asset_texture = asset.textures[asset_material.pbrData.baseColorTexture.value().textureIndex];
+			auto &asset_texture = asset.textures[asset_material.emissiveTexture.value().textureIndex];
 			if (asset_texture.imageIndex.has_value()) {
 				const auto &image = images[asset_texture.imageIndex.value()];
 				RE::Texture::Shared texture{
@@ -266,7 +266,7 @@ loadMaterials(const fastgltf::Asset &asset,
 			}
 		}
 		if (asset_material.occlusionTexture.has_value()) {
-			auto &asset_texture = asset.textures[asset_material.pbrData.baseColorTexture.value().textureIndex];
+			auto &asset_texture = asset.textures[asset_material.occlusionTexture.value().textureIndex];
 			if (asset_texture.imageIndex.has_value()) {
 				const auto &image = images[asset_texture.imageIndex.value()];
 				RE::Texture::Shared texture{
@@ -289,7 +289,7 @@ loadMaterials(const fastgltf::Asset &asset,
 			}
 		}
 		if (asset_material.pbrData.metallicRoughnessTexture.has_value()) {
-			auto &asset_texture = asset.textures[asset_material.pbrData.baseColorTexture.value().textureIndex];
+			auto &asset_texture = asset.textures[asset_material.pbrData.metallicRoughnessTexture.value().textureIndex];
 			if (asset_texture.imageIndex.has_value()) {
 				const auto &image = images[asset_texture.imageIndex.value()];
 				RE::Texture::Shared texture{

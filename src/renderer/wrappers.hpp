@@ -71,4 +71,9 @@ SHARED();
 namespace Shader {
 SHARED();
 }; // namespace Shader
+namespace Light {
+SHARED();
+}; // namespace Light
 }; // namespace RE
+
+

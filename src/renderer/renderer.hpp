@@ -18,7 +18,7 @@
 
 // Rendering engine - core renderer class and storage wrappers
 namespace RE {
-enum class CommandType{
+enum class CommandType {
 	Mesh,
 	UI
 };
@@ -155,7 +155,7 @@ bool isValid(Shader::Handle shader);
 namespace Texture {
 Texture::Handle create(uint32_t width, uint32_t height,
 		Texture::UsageFlags usage_flags = Texture::UsageFlags::SAMPLER,
-		Texture::Format format = Texture::Format::R8G8B8A8_UNORM,  
+		Texture::Format format = Texture::Format::R8G8B8A8_UNORM,
 		RE::Texture::SampleCount sample_count = RE::Texture::SampleCount::ONE,
 		bool generate_mip_maps = false);
 void ref(Texture::Handle texture);
@@ -175,4 +175,18 @@ void uploadBuffer(Texture::Handle texture,
 		size_t count);
 bool isValid(Texture::Handle texture);
 }; // namespace Texture
+
+namespace Light {
+// Light
+void init();
+void destroy();
+void setPosition(Light::Handle light, const glm::vec3 &position);
+void setColor(Light::Handle light, const glm::vec3 &color);
+glm::vec3 getPosition(Light::Handle light);
+glm::vec3 getColor(Light::Handle light);
+Light::Handle create();
+void ref(Light::Handle light);
+void destroy(Light::Handle light);
+bool isValid(Light::Handle light);
+}; // namespace Light
 }; // namespace RE

@@ -55,18 +55,16 @@ createShader(const std::string &shader_file,
 	targetDesc.profile = globalSession->findProfile("spirv_1_5");
 	sessionDesc.targets = &targetDesc;
 	sessionDesc.targetCount = 1;
-	sessionDesc.defaultMatrixLayoutMode = SlangMatrixLayoutMode::SLANG_MATRIX_LAYOUT_ROW_MAJOR;
+	sessionDesc.defaultMatrixLayoutMode = SlangMatrixLayoutMode::SLANG_MATRIX_LAYOUT_COLUMN_MAJOR;
 	std::vector<slang::PreprocessorMacroDesc> preprocessorMacroDesc = {};
 	sessionDesc.preprocessorMacros = preprocessorMacroDesc.data();
 	sessionDesc.preprocessorMacroCount = preprocessorMacroDesc.size();
 	slang::CompilerOptionEntry options[] = {
 		{ slang::CompilerOptionName::EmitSpirvDirectly,
-				{ slang::CompilerOptionValueKind::Int, 1, 0, nullptr, nullptr } },
-		{ slang::CompilerOptionName::MatrixLayoutRow,
 				{ slang::CompilerOptionValueKind::Int, 1, 0, nullptr, nullptr } }
 	};
 	sessionDesc.compilerOptionEntries = options;
-	sessionDesc.compilerOptionEntryCount = 2;
+	sessionDesc.compilerOptionEntryCount = 1;
 
 	globalSession->createSession(sessionDesc, session.writeRef());
 
@@ -87,6 +85,23 @@ createShader(const std::string &shader_file,
 		if (!definesModule) {
 			exit(1);
 		}
+	}
+
+	Slang::ComPtr<slang::IModule> commonModule;
+	{
+		uint8_t *common_buffer = static_cast<uint8_t *>(
+			SDL_LoadFile(GAME_ENGINE_DEFAULT_SHADER_DIR "/common.slang", NULL));
+		Slang::ComPtr<slang::IBlob> diagnosticsBlob;
+		commonModule = session->loadModuleFromSourceString(
+			"common", 
+			GAME_ENGINE_DEFAULT_SHADER_DIR "/common.slang",
+			reinterpret_cast<char *>(common_buffer),
+			diagnosticsBlob.writeRef());
+		diagnoseIfNeeded(diagnosticsBlob);
+		if (!commonModule) {
+			exit(1);
+		}
+		SDL_free(common_buffer);
 	}
 
 	Slang::ComPtr<slang::IModule> slangModule;
@@ -112,10 +127,11 @@ createShader(const std::string &shader_file,
 		}
 	}
 
-	std::array<slang::IComponentType *, 3> componentTypes = {
+	std::array<slang::IComponentType *, 4> componentTypes = {
+		commonModule,
+		definesModule,
 		slangModule,
-		entryPoint,
-		definesModule
+		entryPoint
 	};
 
 	Slang::ComPtr<slang::IComponentType> composedProgram;

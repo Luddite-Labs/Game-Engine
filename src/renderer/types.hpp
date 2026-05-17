@@ -23,8 +23,23 @@
 	};
 
 namespace RE {
+enum Layers: u_int32_t{
+	NONE = 0,
+	ALBEDO = 1 << 0,
+	NORMAL = 1 << 1,
+	METALLIC = 1 << 2,
+	ROUGHNESS = 1 << 3,
+	EMISSIVE = 1 << 4,
+	OCCLUSION = 1 << 5,
+    SPECULAR = 1<< 6,
+    DIFFUSE = 1<< 7,
+    DIELECTRIC = 1<< 8,
+    METALLIC_BRDF = 1<< 9,
+};
+void enable_bitset_enum(Layers);
 struct Options {
 	glm::vec4 clear_color;
+	Layers layers;
 };
 
 namespace Camera {
@@ -41,6 +56,14 @@ struct Data {
 	float near_plane;
 	float far_plane;
 	bool is_orthogonal;
+};
+}; // namespace Camera
+
+namespace Light {
+HANDLE();
+struct Data {
+	glm::vec3 position;
+	glm::vec3 color;
 };
 }; // namespace Camera
 
@@ -201,6 +224,7 @@ struct Factors {
 	float normal_scale;
 	float metallic_factor;
 	float roughness_factor;
+	float padding[2];
 };
 enum class Options : uint8_t {
 	NONE = 0,
@@ -320,5 +344,37 @@ inline const char *getString(RE::Sampler::FilteringModes mode) {
 		case RE::Sampler::FilteringModes::NEAREST:
 			return "NEAREST";
 	}
+	return "";
+}
+
+inline const char *getString(RE::Layers layers) {
+	switch (layers) {
+		case RE::Layers::NONE: 
+			return "NONE";
+		case RE::Layers::ALBEDO: 
+			return "ALBEDO";
+		case RE::Layers::NORMAL: 
+			return "NORMAL";
+		case RE::Layers::METALLIC: 
+			return "METALLIC";
+		case RE::Layers::ROUGHNESS: 
+			return "ROUGHNESS";
+		case RE::Layers::EMISSIVE: 
+			return "EMISSIVE";
+		case RE::Layers::OCCLUSION: 
+			return "OCCLUSION";
+		case RE::Layers::SPECULAR:
+			return "SPECULAR";
+		case RE::Layers::DIFFUSE:
+			return "DIFFUSE";
+		case RE::Layers::DIELECTRIC:
+			return "DIELECTRIC";
+		case RE::Layers::METALLIC_BRDF:
+			return "METALLIC_BRDF";
+	}
+    
+    
+    
+    
 	return "";
 }

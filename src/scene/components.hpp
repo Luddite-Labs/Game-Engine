@@ -32,3 +32,7 @@ struct Child {
 struct RenderableMesh {
 	RE::Mesh::Shared mesh;
 };
+
+struct SceneLight{
+	RE::Light::Shared light;
+};

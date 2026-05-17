@@ -1,10 +1,13 @@
+import common;
+
 extern static const bool UV_USED = false;
 extern static const bool COLOR_USED = false;
 extern static const bool POSITION_USED = false;
 extern static const bool NORMAL_USED = false;
 
 struct TransformMatrices{
-	matrix<float, 4, 4> model_view;
+	matrix<float, 4, 4> model;
+	matrix<float, 4, 4> view;
 	matrix<float, 4, 4> proj;
 };
 
@@ -13,6 +16,7 @@ struct TexturesBuffers { // set 0: Sampled textures, followed by storage texture
 };
 struct UniformBuffers { // set 1: Uniform buffers
 	TransformMatrices transformMatrices;
+	Layers layers; 
 };
 
 struct Input
@@ -30,6 +34,7 @@ struct Output
 	vector<float, 3> normal;
 	vector<float, 4> position : SV_Position;
 	vector<float, 2> uv;
+	vector<float, 3> world_position;
 };
 
 ParameterBlock<TexturesBuffers> TB;
@@ -38,7 +43,8 @@ ParameterBlock<UniformBuffers> UB;
 [shader("vertex")]
 Output main(Input input)
 {
-	matrix<float, 4, 4> model_view_proj = mul(UB.transformMatrices.model_view, UB.transformMatrices.proj);
+	matrix<float, 4, 4> model_view = mul(UB.transformMatrices.view, UB.transformMatrices.model);
+	matrix<float, 4, 4> model_view_proj = mul(UB.transformMatrices.proj, model_view);
 	Output output;
 	if (UV_USED) {
 		output.uv = input.uv;
@@ -50,10 +56,11 @@ Output main(Input input)
 		output.color = float4(1.0f, 1.0f, 1.0f, 1.0f);
 	}
 	if (POSITION_USED) {
-		output.position = mul(float4(input.position, 1.0f), model_view_proj);
+		output.position = mul(model_view_proj, vector<float, 4>(input.position, 1.0f));
+		output.world_position =  mul(UB.transformMatrices.model, vector<float, 4>(input.position, 1.0f)).xyz;
 	}
 	if (NORMAL_USED) {
-		output.normal = input.normal;
-    }
+		output.normal = mul(UB.transformMatrices.model, vector<float, 4>(input.normal, 0.0f)).xyz;
+	}
     return output;
 }
