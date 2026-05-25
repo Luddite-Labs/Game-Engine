@@ -9,6 +9,8 @@ using TextureStorageType = SlotMap<std::vector<RE::Texture::Data>, RE::Texture::
 
 namespace TS {
 // Texture
+void drawTextureDebugUI(RE::Texture::Data &texture_data);
+void drawTextureDebugUI(RE::Texture::Handle &texture_handle);
 void init(SDL_GPUDevice *device);
 void destroy();
 RE::Texture::Handle createTexture(uint32_t width, uint32_t height,

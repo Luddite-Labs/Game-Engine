@@ -1,6 +1,6 @@
+#include <imgui.h>
 #include <renderer/storage/sampler-storage.hpp>
 #include <renderer/storage/texture-storage.hpp>
-
 namespace {
 SDL_GPUDevice *m_GPU_device;
 TextureStorageType texture_storage;
@@ -8,8 +8,67 @@ TextureStorageType texture_storage;
 
 namespace TS {
 // Texture
+void drawTextureDebugUI(RE::Texture::Data &texture_data) {
+	ImGui::PushID(reinterpret_cast<size_t>(&texture_data));
+	if (ImGui::CollapsingHeader(("Texture - " + std::to_string(reinterpret_cast<size_t>(&texture_data))).c_str())) {
+		uint32_t preview_width = 50;
+		uint32_t preview_height = 50;
+		ImGui::Text("Dimensions: %dx%d", texture_data.width,
+				texture_data.height);
+		ImVec2 pos = ImGui::GetCursorScreenPos();
+		ImVec2 uv_min = ImVec2(0.0f, 0.0f); // Top-left
+		ImVec2 uv_max = ImVec2(1.0f, 1.0f); // Lower-right
+		ImGui::PushStyleVar(ImGuiStyleVar_ImageBorderSize,
+				std::max(1.0f, ImGui::GetStyle().ImageBorderSize));
+		ImGui::ImageWithBg(texture_data.gpu_handle, ImVec2(preview_width, preview_height), uv_min,
+				uv_max, ImVec4(0.0f, 0.0f, 0.0f, 1.0f));
+		auto &io = ImGui::GetIO();
+		if (ImGui::BeginItemTooltip()) {
+			float region_sz = 32.0f;
+			float region_x = io.MousePos.x - pos.x - region_sz * 0.5f;
+			float region_y = io.MousePos.y - pos.y - region_sz * 0.5f;
+			float zoom = 4.0f;
+			if (region_x < 0.0f) {
+				region_x = 0.0f;
+			} else if (region_x > texture_data.width - region_sz) {
+				region_x = texture_data.width - region_sz;
+			}
+			if (region_y < 0.0f) {
+				region_y = 0.0f;
+			} else if (region_y > texture_data.height - region_sz) {
+				region_y = texture_data.height - region_sz;
+			}
+			ImGui::Text("Min: (%.2f, %.2f)", region_x, region_y);
+			ImGui::Text("Max: (%.2f, %.2f)", region_x + region_sz,
+					region_y + region_sz);
+			ImVec2 uv0 =
+					ImVec2((region_x) / preview_width, (region_y) / preview_height);
+			ImVec2 uv1 = ImVec2((region_x + region_sz) / preview_width,
+					(region_y + region_sz) / preview_height);
+			ImGui::ImageWithBg(texture_data.gpu_handle, ImVec2(region_sz * zoom, region_sz * zoom), uv0,
+					uv1, ImVec4(0.0f, 0.0f, 0.0f, 1.0f));
+			ImGui::EndTooltip();
+		}
+		if (SaS::isValid(texture_data.sampler)) {
+			ImGui::Indent();
+			SaS::drawSamplerDebugUI(texture_data.sampler);
+			ImGui::Unindent();
+		}
+		ImGui::PopStyleVar();
+	}
+	ImGui::PopID();
+}
+void drawTextureDebugUI(RE::Texture::Handle &texture_handle) {
+	drawTextureDebugUI(texture_storage.get(texture_handle));
+}
 void init(SDL_GPUDevice *device) {
 	m_GPU_device = device;
+	registerUIDebugCallback("texture-storage", [&]() {
+		ImGui::TextUnformatted(("Texture count:" + std::to_string(texture_storage.size())).c_str());
+		for (int i = 0; i < texture_storage.size(); i++) {
+			drawTextureDebugUI(texture_storage[i]);
+		}
+	});
 }
 void destroy() {}
 RE::Texture::Handle createTexture(uint32_t width, uint32_t height,

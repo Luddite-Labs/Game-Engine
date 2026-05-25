@@ -25,6 +25,7 @@
 #include <fastgltf/tools.hpp>
 #include <fastgltf/types.hpp>
 #include <glm/gtx/matrix_decompose.hpp>
+#include <loaders/mikktspace.hpp>
 #include <renderer/types.hpp>
 #include <scene/components.hpp>
 #include <scene/scene.hpp>
@@ -39,6 +40,7 @@ struct Image {
 
 [[nodiscard]] std::vector<RE::Sampler::Shared>
 loadSamplers(const fastgltf::Asset &asset) {
+	setStatusMessage("Loading samplers from GLTF file");
 	std::vector<RE::Sampler::Shared> samplers;
 	RE::Sampler::FilteringModes mag_filter = RE::Sampler::FilteringModes::NEAREST;
 	RE::Sampler::FilteringModes min_filter = RE::Sampler::FilteringModes::NEAREST;
@@ -46,6 +48,7 @@ loadSamplers(const fastgltf::Asset &asset) {
 	RE::Sampler::AddressingModes v_addressing = RE::Sampler::AddressingModes::REPEAT;
 	RE::Sampler::AddressingModes w_addressing = RE::Sampler::AddressingModes::REPEAT;
 	RE::Sampler::MipMapMode mip_map_mode = RE::Sampler::MipMapMode::NEAREST;
+	bool enable_anisotropy = false;
 	for (const auto &asset_sampler : asset.samplers) {
 		if (asset_sampler.magFilter.has_value()) {
 			switch (asset_sampler.magFilter.value()) {
@@ -66,24 +69,28 @@ loadSamplers(const fastgltf::Asset &asset) {
 					min_filter = RE::Sampler::FilteringModes::LINEAR;
 					break;
 				case fastgltf::Filter::NearestMipMapNearest:
+					enable_anisotropy = true;
 					min_filter = RE::Sampler::FilteringModes::NEAREST;
 					mip_map_mode = RE::Sampler::MipMapMode::NEAREST;
 					break;
 				case fastgltf::Filter::NearestMipMapLinear:
+					enable_anisotropy = true;
 					min_filter = RE::Sampler::FilteringModes::NEAREST;
 					mip_map_mode = RE::Sampler::MipMapMode::LINEAR;
 					break;
 				case fastgltf::Filter::LinearMipMapNearest:
+					enable_anisotropy = true;
 					min_filter = RE::Sampler::FilteringModes::LINEAR;
 					mip_map_mode = RE::Sampler::MipMapMode::NEAREST;
 					break;
 				case fastgltf::Filter::LinearMipMapLinear:
+					enable_anisotropy = true;
 					min_filter = RE::Sampler::FilteringModes::LINEAR;
 					mip_map_mode = RE::Sampler::MipMapMode::LINEAR;
 					break;
 			}
 		}
-		switch (asset_sampler.wrapT) {
+		switch (asset_sampler.wrapS) {
 			case fastgltf::Wrap::Repeat:
 				u_addressing = RE::Sampler::AddressingModes::REPEAT;
 				break;
@@ -94,7 +101,7 @@ loadSamplers(const fastgltf::Asset &asset) {
 				u_addressing = RE::Sampler::AddressingModes::MIRRORED_REPEAT;
 				break;
 		}
-		switch (asset_sampler.wrapS) {
+		switch (asset_sampler.wrapT) {
 			case fastgltf::Wrap::Repeat:
 				v_addressing = RE::Sampler::AddressingModes::REPEAT;
 				break;
@@ -105,7 +112,7 @@ loadSamplers(const fastgltf::Asset &asset) {
 				v_addressing = RE::Sampler::AddressingModes::MIRRORED_REPEAT;
 				break;
 		}
-		RE::Sampler::Shared sampler{ RE::Sampler::create(mag_filter, min_filter, u_addressing, v_addressing, w_addressing, mip_map_mode) };
+		RE::Sampler::Shared sampler{ RE::Sampler::create(mag_filter, min_filter, u_addressing, v_addressing, w_addressing, mip_map_mode, enable_anisotropy) };
 		samplers.push_back(sampler);
 	}
 	return std::move(samplers);
@@ -113,6 +120,7 @@ loadSamplers(const fastgltf::Asset &asset) {
 
 [[nodiscard]] std::vector<Image> loadImages(const fastgltf::Asset &asset,
 		const std::string &gltf_path) {
+	setStatusMessage("Loading images from GLTF file");
 	std::vector<Image> images;
 	for (auto image : asset.images) {
 		std::visit(
@@ -181,6 +189,7 @@ loadSamplers(const fastgltf::Asset &asset) {
 loadMaterials(const fastgltf::Asset &asset,
 		const std::vector<RE::Sampler::Shared> &samplers,
 		const std::vector<Image> &images) {
+	setStatusMessage("Loading materials from GLTF file");
 	std::vector<RE::Material::Shared> materials;
 	for (const auto &asset_material : asset.materials) {
 		RE::Material::Shared material{ RE::Material::create() };
@@ -190,6 +199,19 @@ loadMaterials(const fastgltf::Asset &asset,
 				glm::make_vec4(asset_material.emissiveFactor.data()));
 		RE::Material::setMetallicFactor(material.handle, asset_material.pbrData.metallicFactor);
 		RE::Material::setRoughnessFactor(material.handle, asset_material.pbrData.roughnessFactor);
+		RE::Material::setDoubleSided(material.handle, asset_material.doubleSided);
+		RE::Material::setAlphaCutoff(material.handle, asset_material.alphaCutoff);
+		switch (asset_material.alphaMode) {
+			case fastgltf::AlphaMode::Opaque:
+				RE::Material::setAlphaMode(material.handle, RE::Material::AlphaModes::OPAQUE);
+				break;
+			case fastgltf::AlphaMode::Mask:
+				RE::Material::setAlphaMode(material.handle, RE::Material::AlphaModes::MASK);
+				break;
+			case fastgltf::AlphaMode::Blend:
+				RE::Material::setAlphaMode(material.handle, RE::Material::AlphaModes::BLEND);
+				break;
+		}
 		if (asset_material.pbrData.baseColorTexture.has_value()) {
 			auto &asset_texture = asset.textures[asset_material.pbrData.baseColorTexture.value().textureIndex];
 			if (asset_texture.imageIndex.has_value()) {
@@ -250,7 +272,7 @@ loadMaterials(const fastgltf::Asset &asset,
 					RE::Texture::create(
 							image.width, image.height,
 							RE::Texture::UsageFlags::SAMPLER,
-							RE::Texture::Format::R8G8B8A8_UNORM)
+							RE::Texture::Format::R8G8B8A8_UNORM_SRGB)
 				};
 				RE::Texture::uploadBuffer(
 						texture.handle, image.buffer, 0,
@@ -318,6 +340,7 @@ loadMaterials(const fastgltf::Asset &asset,
 
 [[nodiscard]] std::vector<RE::Mesh::Shared>
 loadMeshes(const fastgltf::Asset &asset, const std::vector<RE::Material::Shared> &materials) {
+	setStatusMessage("Loading meshes from GLTF file");
 	std::vector<RE::Mesh::Shared> meshes;
 	for (const auto &asset_mesh : asset.meshes) {
 		RE::Mesh::Arg mesh_data;
@@ -333,6 +356,7 @@ loadMeshes(const fastgltf::Asset &asset, const std::vector<RE::Material::Shared>
 			} else {
 				prim_data.material = { 0, 0 };
 			}
+
 			// load indexes
 			{
 				const fastgltf::Accessor &indexaccessor =
@@ -401,7 +425,7 @@ loadMeshes(const fastgltf::Asset &asset, const std::vector<RE::Material::Shared>
 				prim_data.attrs_data[static_cast<uint32_t>(RE::Vertex::AttributeIndex::NORMAL)] =
 						std::make_unique<uint8_t[]>(normalAccessor.count * sizeof(glm::vec3));
 				fastgltf::iterateAccessorWithIndex<glm::vec3>(
-						asset, asset.accessors[(*normals).accessorIndex],
+						asset, normalAccessor,
 						[&](glm::vec3 v, size_t index) {
 							memcpy(prim_data.attrs_data[static_cast<uint32_t>(RE::Vertex::AttributeIndex::NORMAL)].get() + (index * sizeof(glm::vec3)), glm::value_ptr(v), sizeof(glm::vec3));
 						});
@@ -409,16 +433,43 @@ loadMeshes(const fastgltf::Asset &asset, const std::vector<RE::Material::Shared>
 
 			// load Color
 			{
-				auto at_it = primitive.findAttribute("COLOR_0");
-				if (at_it != primitive.attributes.end()) {
+				auto colors = primitive.findAttribute("COLOR_0");
+				if (colors != primitive.attributes.end()) {
 					const fastgltf::Accessor &colorAccessor =
-							asset.accessors[at_it->accessorIndex];
+							asset.accessors[colors->accessorIndex];
 					prim_data.attrs_data[static_cast<uint32_t>(RE::Vertex::AttributeIndex::COLOR)] =
-							std::make_unique<uint8_t[]>(colorAccessor.count * sizeof(glm::vec3));
-					fastgltf::iterateAccessorWithIndex<glm::vec3>(
-							asset, colorAccessor, [&](glm::vec3 v, size_t index) {
-								memcpy(prim_data.attrs_data[static_cast<uint32_t>(RE::Vertex::AttributeIndex::COLOR)].get() + (index * sizeof(glm::vec3)), glm::value_ptr(v), sizeof(glm::vec3));
+							std::make_unique<uint8_t[]>(colorAccessor.count * sizeof(glm::vec4));
+					fastgltf::iterateAccessorWithIndex<glm::vec4>(
+							asset, colorAccessor, [&](glm::vec4 v, size_t index) {
+								memcpy(prim_data.attrs_data[static_cast<uint32_t>(RE::Vertex::AttributeIndex::COLOR)].get() + (index * sizeof(glm::vec4)), glm::value_ptr(v), sizeof(glm::vec4));
 							});
+				}
+			}
+
+			if (RE::Material::isValid(prim_data.material) &&
+					RE::Texture::isValid(RE::Material::getNormalTexture(prim_data.material)) &&
+					prim_data.attrs_data[static_cast<uint32_t>(RE::Vertex::AttributeIndex::UV)].get() != nullptr &&
+					prim_data.attrs_data[static_cast<uint32_t>(RE::Vertex::AttributeIndex::NORMAL)].get() != nullptr) {
+				prim_data.attrs_data[static_cast<uint32_t>(RE::Vertex::AttributeIndex::TANGENT)] =
+						std::make_unique<uint8_t[]>(
+								prim_data.vert_count * sizeof(glm::vec4));
+
+				auto tangents = primitive.findAttribute("TANGENT");
+				if (tangents != primitive.attributes.end()) {
+					const fastgltf::Accessor &tangentAccessor =
+							asset.accessors[tangents->accessorIndex];
+					fastgltf::iterateAccessorWithIndex<glm::vec4>(
+							asset, asset.accessors[(*tangents).accessorIndex],
+							[&](glm::vec4 v, size_t index) {
+								memcpy(prim_data.attrs_data[static_cast<uint32_t>(RE::Vertex::AttributeIndex::TANGENT)].get() + (index * sizeof(glm::vec4)), glm::value_ptr(v), sizeof(glm::vec4));
+							});
+				} else {
+					memset(
+							prim_data.attrs_data[static_cast<uint32_t>(RE::Vertex::AttributeIndex::TANGENT)].get(),
+							0,
+							prim_data.vert_count * sizeof(glm::vec4));
+
+					generateTangents(prim_data);
 				}
 			}
 		}
@@ -432,6 +483,7 @@ loadMeshes(const fastgltf::Asset &asset, const std::vector<RE::Material::Shared>
 
 [[nodiscard]] std::vector<RE::Camera::Shared>
 loadCameras(const fastgltf::Asset &asset) {
+	setStatusMessage("Loading cameras from GLTF file");
 	std::vector<RE::Camera::Shared> cameras;
 	for (auto &camera : asset.cameras) {
 		if (std::holds_alternative<fastgltf::Camera::Perspective>(camera.camera)) {
@@ -464,6 +516,7 @@ loadCameras(const fastgltf::Asset &asset) {
 }
 
 void load(std::string file_path) {
+	setStatusMessage("Loading GLTF file");
 	std::string gltf_path = std::filesystem::path(file_path).parent_path().string();
 	auto scene_manager = SceneManager::getSingleton();
 
@@ -561,4 +614,5 @@ void load(std::string file_path) {
 	if (asset->defaultScene.has_value()) {
 		scene_manager->active_scene_index = asset->defaultScene.value();
 	}
+	setStatusMessage("GLTF file loaded");
 }

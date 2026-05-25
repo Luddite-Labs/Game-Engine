@@ -37,18 +37,24 @@ configure_file(${CMAKE_SOURCE_DIR}/imgui.ini imgui.ini COPYONLY)
 
 file(GLOB IMGUI_LIB_FILES external/imgui/*)
 file(GLOB IMPLOT_LIB_FILES external/implot/*)
+file(GLOB IMGUIZMO_LIB_FILES external/ImGuizmo/*)
 file( GLOB_RECURSE SOURCE_FILES src/* )
 list(FILTER SOURCE_FILES EXCLUDE REGEX ".*\\.hlsl$")
 target_sources(${EXECUTABLE_NAME} 
     PRIVATE ${SOURCE_FILES}
     ${IMGUI_LIB_FILES}
     ${IMPLOT_LIB_FILES}
+    ${IMGUIZMO_LIB_FILES}
+    external/MikkTSpace/mikktspace.h
+    external/MikkTSpace/mikktspace.c
     external/imgui/backends/imgui_impl_sdlgpu3.cpp
     external/imgui/backends/imgui_impl_sdl3.cpp
 )
 target_include_directories( ${EXECUTABLE_NAME}
 	PRIVATE ${CMAKE_SOURCE_DIR}/src/
     PUBLIC ${CMAKE_BINARY_DIR}/
+    PRIVATE external/ImGuizmo/
+    PRIVATE external/MikkTSpace/
     PRIVATE external/soa_vector/
     PRIVATE external/imgui/
     PRIVATE external/stb/

@@ -1,6 +1,7 @@
 #include "SDL3/SDL_init.h"
 #include "SDL3/SDL_video.h"
 #include <ui/ui.hpp>
+#include <ImGuizmo.h>
 
 UI::UI(SDL_Window *window) {
 	float main_scale = SDL_GetDisplayContentScale(SDL_GetPrimaryDisplay());
@@ -78,6 +79,7 @@ void UI::beginFrame() {
 	ImGui_ImplSDLGPU3_NewFrame();
 	ImGui_ImplSDL3_NewFrame();
 	ImGui::NewFrame();
+	ImGuizmo::BeginFrame();
 
 	// 2. Show a simple window that we create ourselves. We use a Begin/End pair
 	// to create a named window.

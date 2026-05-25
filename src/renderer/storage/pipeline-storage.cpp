@@ -1,6 +1,8 @@
 #include "SDL3/SDL_assert.h"
 #include "SDL3/SDL_gpu.h"
 #include "renderer/types.hpp"
+#include <imgui.h>
+#include <misc/utils.hpp>
 #include <renderer/storage/pipeline-storage.hpp>
 #include <renderer/storage/shader-storage.hpp>
 #include <unordered_map>
@@ -38,8 +40,62 @@ PipelineCache pipeline_cache;
 // Pipeline Storage
 namespace PS {
 
+void drawPipelineDebugUI(RE::Pipeline::Data &pipeline_data) {
+	ImGui::PushID(reinterpret_cast<size_t>(&pipeline_data));
+	if (ImGui::CollapsingHeader(("pipeline - " + std::to_string(reinterpret_cast<size_t>(&pipeline_data))).c_str())) {
+		ImGui::TextUnformatted("Options:");
+
+		ImGui::TextUnformatted("Color Target Format");
+		ImGui::SameLine();
+		ImGui::TextUnformatted(getString(pipeline_data.options.color_target_format));
+
+		ImGui::TextUnformatted("Primitive Type:");
+		ImGui::SameLine();
+		ImGui::TextUnformatted(getString(pipeline_data.options.primitive_type));
+
+		ImGui::TextUnformatted("Vertex attributes:");
+		for (int i = 0; i < static_cast<int>(RE::Vertex::AttributeIndex::MAX); i++) {
+			if ((1 << i) & static_cast<int>(pipeline_data.options.vert_attrs)) {
+				ImGui::Indent();
+				ImGui::TextUnformatted(getString(static_cast<RE::Vertex::Attributes>(1 << i)));
+				ImGui::Unindent();
+			}
+		}
+
+		ImGui::TextUnformatted("Material options:");
+		for (int i = 0; i < 6; i++) {
+			if ((1 << i) & static_cast<int>(pipeline_data.options.material_options)) {
+				ImGui::Indent();
+				ImGui::TextUnformatted(getString(static_cast<RE::Material::Options>(1 << i)));
+				ImGui::Unindent();
+			}
+		}
+		ShS::drawShaderDebugUI(pipeline_data.options.vert_shader);
+		ShS::drawShaderDebugUI(pipeline_data.options.frag_shader);
+
+		ImGui::BeginDisabled();
+		ImGui::Checkbox("Disable back face culling:", &pipeline_data.options.disable_back_face_culling);
+		ImGui::EndDisabled();
+
+		ImGui::BeginDisabled();
+		ImGui::Checkbox("Instanced:", &pipeline_data.options.instanced);
+		ImGui::EndDisabled();
+	}
+	ImGui::PopID();
+}
+
+void drawPipelineDebugUI(const RE::Pipeline::Handle &pipeline_handle) {
+	drawPipelineDebugUI(pipeline_storage.get(pipeline_handle));
+}
+
 void init(SDL_GPUDevice *device) {
 	m_GPU_device = device;
+	registerUIDebugCallback("pipeline-storage", [&]() {
+		ImGui::TextUnformatted(("Pipeline count:" + std::to_string(pipeline_storage.size())).c_str());
+		for (int i = 0; i < pipeline_storage.size(); i++) {
+			drawPipelineDebugUI(pipeline_storage[i]);
+		}
+	});
 }
 void destroy() {}
 RE::Pipeline::Handle createPipeline(const RE::Pipeline::Options &options) {
@@ -49,9 +105,18 @@ RE::Pipeline::Handle createPipeline(const RE::Pipeline::Options &options) {
 
 	SDL_GPUColorTargetDescription color_target_descriptions[] = {
 		{ .format =
-						static_cast<SDL_GPUTextureFormat>(options.color_target_format) }
+						static_cast<SDL_GPUTextureFormat>(options.color_target_format),
+				.blend_state = {
+						.src_color_blendfactor = SDL_GPU_BLENDFACTOR_SRC_ALPHA,
+						.dst_color_blendfactor = SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
+						.color_blend_op = SDL_GPU_BLENDOP_ADD,
+						.src_alpha_blendfactor = SDL_GPU_BLENDFACTOR_ONE,
+						.dst_alpha_blendfactor = SDL_GPU_BLENDFACTOR_ONE,
+						.alpha_blend_op = SDL_GPU_BLENDOP_ADD,
+						.enable_blend = true,
+				} }
 	};
-	SDL_GPUGraphicsPipelineTargetInfo target_info;
+	SDL_GPUGraphicsPipelineTargetInfo target_info = {};
 	target_info.color_target_descriptions = color_target_descriptions;
 	target_info.num_color_targets = 1;
 	if (options.primitive_type == RE::Mesh::Primitive::Type::TRIANGLELIST) {
@@ -75,11 +140,18 @@ RE::Pipeline::Handle createPipeline(const RE::Pipeline::Options &options) {
 				.format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3,
 				.offset = 0 });
 	}
+	if ((options.vert_attrs & RE::Vertex::Attributes::TANGENT) ==
+			RE::Vertex::Attributes::TANGENT) {
+		vert_attrs.push_back({ .location = static_cast<uint8_t>(RE::Vertex::AttributeIndex::TANGENT),
+				.buffer_slot = static_cast<uint8_t>(RE::Vertex::AttributeIndex::TANGENT),
+				.format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT4,
+				.offset = 0 });
+	}
 	if ((options.vert_attrs & RE::Vertex::Attributes::COLOR) ==
 			RE::Vertex::Attributes::COLOR) {
 		vert_attrs.push_back({ .location = static_cast<uint8_t>(RE::Vertex::AttributeIndex::COLOR),
 				.buffer_slot = static_cast<uint8_t>(RE::Vertex::AttributeIndex::COLOR),
-				.format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3,
+				.format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT4,
 				.offset = 0 });
 	}
 	if ((options.vert_attrs & RE::Vertex::Attributes::UV) ==
@@ -99,6 +171,9 @@ RE::Pipeline::Handle createPipeline(const RE::Pipeline::Options &options) {
 	for (const auto &vert_attr : vert_attrs) {
 		uint32_t pitch = 0;
 		switch (vert_attr.format) {
+			case SDL_GPU_VERTEXELEMENTFORMAT_FLOAT4:
+				pitch = sizeof(float) * 4;
+				break;
 			case SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3:
 				pitch = sizeof(float) * 3;
 				break;
@@ -135,7 +210,7 @@ RE::Pipeline::Handle createPipeline(const RE::Pipeline::Options &options) {
 			static_cast<SDL_GPUPrimitiveType>(options.primitive_type);
 	pipelineCreateInfo.rasterizer_state = {
 		.fill_mode = SDL_GPU_FILLMODE_FILL,
-		.cull_mode = SDL_GPU_CULLMODE_BACK,
+		.cull_mode = (options.disable_back_face_culling) ? SDL_GPU_CULLMODE_NONE : SDL_GPU_CULLMODE_BACK,
 		.front_face = SDL_GPU_FRONTFACE_COUNTER_CLOCKWISE
 	};
 	if (options.primitive_type == RE::Mesh::Primitive::Type::TRIANGLELIST) {
@@ -161,7 +236,7 @@ SDL_GPUGraphicsPipeline *getPipelineGPUHandle(RE::Pipeline::Handle pipeline) {
 	SDL_assert(pipeline_storage.isValid(pipeline));
 	return pipeline_storage.get(pipeline).gpu_handle;
 }
-bool isValid(RE::Pipeline::Handle pipeline){
+bool isValid(RE::Pipeline::Handle pipeline) {
 	return pipeline_storage.isValid(pipeline);
 }
 }; // namespace PS

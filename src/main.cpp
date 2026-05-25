@@ -69,6 +69,7 @@ struct AppContext {
 	Transform camera_transform;
 	SDL_AppResult app_status = SDL_APP_CONTINUE;
 	SDL_Window *window;
+	std::string selected_debug_view;
 };
 
 SDL_AppResult SDL_Fail() {
@@ -126,6 +127,7 @@ SDL_AppResult SDL_AppInit(void **app_state, int argc, char *argv[]) {
 				RE::Options{ .clear_color = glm::vec4(0.1f, 0.1f, 0.1f, 1.0f) },
 		.scene_camera = scene_camera,
 		.window = window,
+		.selected_debug_view=""
 	};
 	auto &camera_transform = static_cast<AppContext *>(*app_state)->camera_transform;
 	camera_transform.translate = { -10, 5, 10 };
@@ -159,10 +161,12 @@ SDL_AppResult SDL_AppIterate(void *app_state) {
 
 	UI::getSingleton()->beginFrame();
 	drawToolBar(app->window);
+	drawStatusBar(app->window);
 	glm::vec2 content_region{};
 	drawRenderResult(app->render_target, app->camera_transform, app->scene_camera);
 	drawRenderOptions(app->renderer_options);
-	drawSceneGraph(scene_manager);
+	drawSceneGraph(scene_manager, app->camera_transform, app->scene_camera);
+	app->selected_debug_view = drawDebugViews(app->selected_debug_view);
 	if (0 <= scene_manager->active_scene_index &&
 			scene_manager->active_scene_index < scene_manager->scenes.size()) {
 		auto &scene = scene_manager->scenes[scene_manager->active_scene_index];

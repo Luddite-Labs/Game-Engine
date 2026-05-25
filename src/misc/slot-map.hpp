@@ -155,6 +155,10 @@ public:
 		return data[slots[handle.slot_index].data_index];
 	}
 
+	D& operator[](int i){
+		return data[i];
+	}
+
 	uint32_t size() {
 		return live_node_count;
 	}

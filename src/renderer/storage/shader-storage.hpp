@@ -11,6 +11,8 @@ using ShaderStorageType = SlotMap<std::vector<RE::Shader::Data>, RE::Shader::Dat
 
 // Shader Storage
 namespace ShS {
+void drawShaderDebugUI(RE::Shader::Data &shader_data);
+void drawShaderDebugUI(RE::Shader::Handle &shader_handle);
 void init(SDL_GPUDevice *device);
 void destroy();
 
@@ -25,6 +27,8 @@ uint32_t getShaderNumSamplers(RE::Shader::Handle shader);
 uint32_t getShaderNumStorageTextures(RE::Shader::Handle shader);
 uint32_t getShaderNumStorageBuffers(RE::Shader::Handle shader);
 uint32_t getShaderNumUniformBuffers(RE::Shader::Handle shader);
-SDL_GPUShader* getShaderGPUHandle(RE::Shader::Handle shader);
+SDL_GPUShader *getShaderGPUHandle(RE::Shader::Handle shader);
+const std::vector<RE::Shader::Definition> &getShaderDefines(RE::Shader::Handle shader);
+std::string getShaderPath(RE::Shader::Handle shader);
 bool isValid(RE::Shader::Handle camera);
 }; // namespace ShS

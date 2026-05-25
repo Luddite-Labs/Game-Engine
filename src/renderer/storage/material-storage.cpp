@@ -1,5 +1,6 @@
+#include "glm/gtc/type_ptr.hpp"
+#include <imgui.h>
 #include <renderer/storage/material-storage.hpp>
-
 namespace {
 SDL_GPUDevice *m_GPU_device;
 MaterialStorageType material_storage;
@@ -9,8 +10,96 @@ MaterialStorageType material_storage;
 // Material Storage
 namespace MaS {
 
+void drawMaterialDebugUI(RE::Material::Data &material_data) {
+	ImGui::PushID(reinterpret_cast<size_t>(&material_data));
+	if (ImGui::CollapsingHeader(("Material - " + std::to_string(reinterpret_cast<size_t>(&material_data))).c_str())) {
+		float metallic_factor = material_data.factors.metallic_factor;
+		float roughness_factor = material_data.factors.roughness_factor;
+		float normal_scale = material_data.factors.normal_scale;
+		float alpha_cutoff = material_data.factors.alpha_cutoff;
+		glm::vec4 color_factor = material_data.factors.color_factor;
+		glm::vec3 emissive_factor = material_data.factors.emissive_factor;
+		bool double_sided = material_data.factors.double_sided;
+		if (ImGui::InputFloat("Metallic Factor", &metallic_factor)) {
+			material_data.factors.metallic_factor = metallic_factor;
+		}
+		if (ImGui::InputFloat("Roughness Factor", &roughness_factor)) {
+			material_data.factors.roughness_factor = roughness_factor;
+		}
+		if (ImGui::InputFloat("Normal Scale", &normal_scale)) {
+			material_data.factors.normal_scale = normal_scale;
+		}
+		if (ImGui::InputFloat4("Color Factor", glm::value_ptr(color_factor))) {
+			material_data.factors.color_factor = color_factor;
+		}
+		if (ImGui::InputFloat3("Emissive Factor", glm::value_ptr(emissive_factor))) {
+			material_data.factors.emissive_factor = emissive_factor;
+		}
+		if (ImGui::BeginCombo("Alpha Modes", getString(material_data.factors.alpha_mode))) {
+			if (ImGui::Selectable(getString(RE::Material::AlphaModes::OPAQUE), material_data.factors.alpha_mode == RE::Material::AlphaModes::OPAQUE)) {
+				material_data.factors.alpha_mode = RE::Material::AlphaModes::OPAQUE;
+			}
+			if (ImGui::Selectable(getString(RE::Material::AlphaModes::MASK), material_data.factors.alpha_mode == RE::Material::AlphaModes::MASK)) {
+				material_data.factors.alpha_mode = RE::Material::AlphaModes::MASK;
+			}
+			if (ImGui::Selectable(getString(RE::Material::AlphaModes::BLEND), material_data.factors.alpha_mode == RE::Material::AlphaModes::BLEND)) {
+				material_data.factors.alpha_mode = RE::Material::AlphaModes::BLEND;
+			}
+			ImGui::EndCombo();
+		}
+		if (ImGui::InputFloat("Alpha Cutoff", &alpha_cutoff)) {
+			material_data.factors.alpha_cutoff = alpha_cutoff;
+		}
+		ImGui::BeginDisabled();
+		if (ImGui::Checkbox("Double Sided", &double_sided)) {
+			material_data.factors.double_sided = double_sided;
+		}
+		ImGui::EndDisabled();
+		if (TS::isValid(material_data.color)) {
+			ImGui::Text("Color Texture");
+			ImGui::Indent();
+			TS::drawTextureDebugUI(material_data.color);
+			ImGui::Unindent();
+		}
+		if (TS::isValid(material_data.emissive)) {
+			ImGui::Text("Emissive Texture");
+			ImGui::Indent();
+			TS::drawTextureDebugUI(material_data.emissive);
+			ImGui::Unindent();
+		}
+		if (TS::isValid(material_data.normal)) {
+			ImGui::Text("Normal Texture");
+			ImGui::Indent();
+			TS::drawTextureDebugUI(material_data.normal);
+			ImGui::Unindent();
+		}
+		if (TS::isValid(material_data.occlusion)) {
+			ImGui::Text("Occlusion Texture");
+			ImGui::Indent();
+			TS::drawTextureDebugUI(material_data.occlusion);
+			ImGui::Unindent();
+		}
+		if (TS::isValid(material_data.metallic_roughness)) {
+			ImGui::Text("Metallic Roughness Texture");
+			ImGui::Indent();
+			TS::drawTextureDebugUI(material_data.metallic_roughness);
+			ImGui::Unindent();
+		}
+	}
+	ImGui::PopID();
+}
+void drawMaterialDebugUI(RE::Material::Handle &material_handle) {
+	drawMaterialDebugUI(material_storage.get(material_handle));
+}
+
 void init(SDL_GPUDevice *device) {
 	m_GPU_device = device;
+	registerUIDebugCallback("material-storage", [&]() {
+		ImGui::TextUnformatted(("Material count:" + std::to_string(material_storage.size())).c_str());
+		for (int i = 0; i < material_storage.size(); i++) {
+			drawMaterialDebugUI(material_storage[i]);
+		}
+	});
 }
 
 void destroy() {}
@@ -60,6 +149,9 @@ float getMaterialMetallicFactor(RE::Material::Handle material) {
 }
 float getMaterialRoughnessFactor(RE::Material::Handle material) {
 	return material_storage.get(material).factors.roughness_factor;
+}
+bool getDoubleSided(RE::Material::Handle material) {
+	return material_storage.get(material).factors.double_sided;
 }
 void setMaterialColorFactor(RE::Material::Handle material,
 		glm::vec4 color_factor) {
@@ -119,13 +211,36 @@ void setMaterialMetallicFactor(RE::Material::Handle material,
 }
 void setMaterialRoughnessFactor(RE::Material::Handle material,
 		float roughness_factor) {
-	material_storage.get(material).factors.metallic_factor = roughness_factor;
+	material_storage.get(material).factors.roughness_factor = roughness_factor;
 	material_storage.setIsEdited(material);
 }
 RE::Material::Factors getMaterialFactors(RE::Material::Handle material) {
 	return material_storage.get(material).factors;
 }
-bool isValid(RE::Material::Handle material){
+bool isValid(RE::Material::Handle material) {
 	return material_storage.isValid(material);
 }
+
+float getMaterialAlphaCutoff(RE::Material::Handle material) {
+	return material_storage.get(material).factors.alpha_cutoff;
+}
+
+RE::Material::AlphaModes getMaterialAlphaMode(RE::Material::Handle material) {
+	return material_storage.get(material).factors.alpha_mode;
+}
+
+void setMaterialAlphaCutoff(RE::Material::Handle material, float alpha_cutoff) {
+	material_storage.get(material).factors.alpha_cutoff = alpha_cutoff;
+	material_storage.setIsEdited(material);
+}
+
+void setDoubleSided(RE::Material::Handle material, bool double_sided) {
+	material_storage.get(material).factors.double_sided = double_sided;
+	material_storage.setIsEdited(material);
+}
+void setMaterialAlphaMode(RE::Material::Handle material, RE::Material::AlphaModes alpha_mode) {
+	material_storage.get(material).factors.alpha_mode = alpha_mode;
+	material_storage.setIsEdited(material);
+}
+
 }; // namespace MaS

@@ -23,18 +23,25 @@
 	};
 
 namespace RE {
-enum Layers: u_int32_t{
+enum Layers : u_int32_t {
 	NONE = 0,
 	ALBEDO = 1 << 0,
-	NORMAL = 1 << 1,
+	VERTEX_NORMAL = 1 << 1,
 	METALLIC = 1 << 2,
 	ROUGHNESS = 1 << 3,
 	EMISSIVE = 1 << 4,
 	OCCLUSION = 1 << 5,
-    SPECULAR = 1<< 6,
-    DIFFUSE = 1<< 7,
-    DIELECTRIC = 1<< 8,
-    METALLIC_BRDF = 1<< 9,
+	SPECULAR = 1 << 6,
+	DIFFUSE = 1 << 7,
+	DIELECTRIC = 1 << 8,
+	METALLIC_BRDF = 1 << 9,
+	TANGENT = 1 << 10,
+	NORMAL_TEXTURE = 1 << 11,
+	SHADING_NORMAL = 1 << 12,
+	UV = 1 << 13,
+	DEPTH = 1 << 14,
+	VERTEX_COLOR = 1 << 15,
+	ALPHA = 1 << 16
 };
 void enable_bitset_enum(Layers);
 struct Options {
@@ -61,11 +68,22 @@ struct Data {
 
 namespace Light {
 HANDLE();
-struct Data {
-	glm::vec3 position;
-	glm::vec3 color;
+
+enum Type : uint8_t {
+	DIRECTIONAL,
+	POINT
 };
-}; // namespace Camera
+struct Data {
+	union {
+		glm::vec3 position;
+		glm::vec3 direction;
+	};
+	float padding1;
+	glm::vec3 color;
+	Type type;
+	uint8_t padding3[3];
+}; // std430 layout
+}; // namespace Light
 
 namespace Vertex {
 enum class Attributes : uint8_t {
@@ -111,6 +129,7 @@ struct Data {
 	Sampler::AddressingModes v_addressing;
 	Sampler::AddressingModes w_addressing;
 	Sampler::MipMapMode mip_map_mode;
+	bool enable_anisotropy;
 };
 }; // namespace Sampler
 
@@ -218,13 +237,21 @@ struct Data {
 }; // namespace Mesh
 
 namespace Material {
+enum AlphaModes : uint8_t {
+	OPAQUE,
+	MASK,
+	BLEND,
+};
 struct Factors {
 	glm::vec4 color_factor;
 	glm::vec3 emissive_factor;
 	float normal_scale;
 	float metallic_factor;
 	float roughness_factor;
-	float padding[2];
+	float alpha_cutoff;
+	AlphaModes alpha_mode;
+	bool double_sided;
+	uint8_t padding[2];
 };
 enum class Options : uint8_t {
 	NONE = 0,
@@ -253,18 +280,21 @@ namespace Shader {
 enum class Type : uint8_t { VERTEX,
 	FRAGMENT };
 HANDLE();
+struct Definition {
+	const char *name;
+	const char *value;
+};
 struct Data {
 	uint32_t num_samplers;
 	uint32_t num_storage_textures;
 	uint32_t num_storage_buffers;
 	uint32_t num_uniform_buffers;
 	Shader::Type type;
+	std::string path;
+	std::vector<RE::Shader::Definition> defines;
 	SDL_GPUShader *gpu_handle;
 };
-struct Definition {
-	const char *name;
-	const char *value;
-};
+
 }; // namespace Shader
 
 namespace Pipeline {
@@ -276,6 +306,7 @@ public:
 	Material::Options material_options;
 	Shader::Handle vert_shader;
 	Shader::Handle frag_shader;
+	bool disable_back_face_culling;
 	bool instanced;
 	bool operator==(const Options &other) const {
 		return (this->color_target_format == other.color_target_format) and
@@ -286,6 +317,7 @@ public:
 				(this->vert_shader.generation == other.vert_shader.generation) and
 				(this->frag_shader.slot_index == other.frag_shader.slot_index) and
 				(this->frag_shader.generation == other.frag_shader.generation) and
+				(this->disable_back_face_culling == other.disable_back_face_culling) and
 				(this->instanced == other.instanced);
 	}
 };
@@ -327,6 +359,16 @@ inline const char *getString(RE::Sampler::AddressingModes mode) {
 	return "";
 }
 
+inline const char *getString(RE::Shader::Type type) {
+	switch (type) {
+		case RE::Shader::Type::VERTEX:
+			return "VERTEX";
+		case RE::Shader::Type::FRAGMENT:
+			return "FRAGMENT";
+	}
+	return "";
+}
+
 inline const char *getString(RE::Sampler::MipMapMode mode) {
 	switch (mode) {
 		case RE::Sampler::MipMapMode::LINEAR:
@@ -349,19 +391,23 @@ inline const char *getString(RE::Sampler::FilteringModes mode) {
 
 inline const char *getString(RE::Layers layers) {
 	switch (layers) {
-		case RE::Layers::NONE: 
+		case RE::Layers::NONE:
 			return "NONE";
-		case RE::Layers::ALBEDO: 
+		case RE::Layers::ALBEDO:
 			return "ALBEDO";
-		case RE::Layers::NORMAL: 
-			return "NORMAL";
-		case RE::Layers::METALLIC: 
+		case RE::Layers::VERTEX_NORMAL:
+			return "VERTEX NORMAL";
+		case RE::Layers::SHADING_NORMAL:
+			return "SHADING NORMAL";
+		case RE::Layers::NORMAL_TEXTURE:
+			return "NORMAL TEXTURE";
+		case RE::Layers::METALLIC:
 			return "METALLIC";
-		case RE::Layers::ROUGHNESS: 
+		case RE::Layers::ROUGHNESS:
 			return "ROUGHNESS";
-		case RE::Layers::EMISSIVE: 
+		case RE::Layers::EMISSIVE:
 			return "EMISSIVE";
-		case RE::Layers::OCCLUSION: 
+		case RE::Layers::OCCLUSION:
 			return "OCCLUSION";
 		case RE::Layers::SPECULAR:
 			return "SPECULAR";
@@ -371,10 +417,105 @@ inline const char *getString(RE::Layers layers) {
 			return "DIELECTRIC";
 		case RE::Layers::METALLIC_BRDF:
 			return "METALLIC_BRDF";
+		case RE::Layers::TANGENT:
+			return "TANGENT";
+		case RE::Layers::UV:
+			return "UV";
+		case RE::Layers::DEPTH:
+			return "DEPTH";
+		case RE::Layers::VERTEX_COLOR:
+			return "VERTEX COLOR";
+		case RE::Layers::ALPHA:
+			return "ALPHA";
 	}
-    
-    
-    
-    
+	return "";
+}
+
+inline const char *getString(RE::Material::AlphaModes modes) {
+	switch (modes) {
+		case RE::Material::AlphaModes::OPAQUE:
+			return "OPAQUE";
+		case RE::Material::AlphaModes::MASK:
+			return "MASK";
+		case RE::Material::AlphaModes::BLEND:
+			return "BLEND";
+	}
+	return "";
+}
+
+inline const char *getString(RE::Texture::Format format) {
+	switch (format) {
+		case RE::Texture::Format::R8G8B8A8_UNORM:
+			return "R8G8B8A8_UNORM";
+		case RE::Texture::Format::R8G8B8A8_UNORM_SRGB:
+			return "R8G8B8A8_UNORM_SRGB";
+		case RE::Texture::Format::D16_UNORM:
+			return "D16_UNORM";
+		case RE::Texture::Format::D24_UNORM:
+			return "D24_UNORM";
+		case RE::Texture::Format::D24_UNORM_S8_UINT:
+			return "D24_UNORM_S8_UINT";
+		case RE::Texture::Format::D32_FLOAT:
+			return "D32_FLOAT";
+	}
+	return "";
+}
+
+inline const char *getString(RE::Mesh::Primitive::Type type) {
+	switch (type) {
+		case RE::Mesh::Primitive::Type::TRIANGLELIST:
+			return "TRIANGLELIST";
+	}
+	return "";
+}
+
+inline const char *getString(RE::Vertex::Attributes type) {
+	switch (type) {
+		case RE::Vertex::Attributes::NONE:
+			return "NONE";
+		case RE::Vertex::Attributes::POSITION:
+			return "POSITION";
+		case RE::Vertex::Attributes::NORMAL:
+			return "NORMAL";
+		case RE::Vertex::Attributes::COLOR:
+			return "COLOR";
+		case RE::Vertex::Attributes::TANGENT:
+			return "TANGENT";
+		case RE::Vertex::Attributes::UV:
+			return "UV";
+		case RE::Vertex::Attributes::INDEX:
+			return "INDEX";
+	}
+
+	return "";
+}
+
+inline const char *getString(RE::Material::Options option) {
+	switch (option) {
+		case RE::Material::Options::NONE:
+			return "NONE";
+		case RE::Material::Options::NORMAL_TEXTURE:
+			return "NORMAL_TEXTURE";
+		case RE::Material::Options::EMISSIVE_TEXTURE:
+			return "EMISSIVE_TEXTURE";
+		case RE::Material::Options::OCCLUSION_TEXTURE:
+			return "OCCLUSION_TEXTURE";
+		case RE::Material::Options::COLOR_TEXTURE:
+			return "COLOR_TEXTURE";
+		case RE::Material::Options::METALLIC_ROUGHNESS_TEXTURE:
+			return "METALLIC_ROUGHNESS_TEXTURE";
+		case RE::Material::Options::COLOR_FACTOR_USED:
+			return "COLOR_FACTOR_USED";
+	}
+	return "";
+}
+
+inline const char *getString(RE::Light::Type type) {
+	switch (type) {
+		case RE::Light::Type::DIRECTIONAL:
+			return "DIRECTIONAL";
+		case RE::Light::Type::POINT:
+			return "POINT";
+	}
 	return "";
 }

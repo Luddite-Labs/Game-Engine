@@ -1,3 +1,4 @@
+#include <imgui.h>
 #include <renderer/storage/material-storage.hpp>
 #include <renderer/storage/mesh-storage.hpp>
 #include <renderer/storage/pipeline-storage.hpp>
@@ -6,12 +7,12 @@
 namespace {
 SDL_GPUDevice *m_GPU_device;
 MeshStorageType mesh_storage;
-uint32_t max_stride = sizeof(glm::vec3);
+uint32_t max_stride = sizeof(glm::vec4);
 std::unordered_map<RE::Vertex::AttributeIndex, uint32_t> stride_map = {
 	{ RE::Vertex::AttributeIndex::POSITION, sizeof(glm::vec3) },
 	{ RE::Vertex::AttributeIndex::NORMAL, sizeof(glm::vec3) },
-	{ RE::Vertex::AttributeIndex::TANGENT, sizeof(glm::vec3) },
-	{ RE::Vertex::AttributeIndex::COLOR, sizeof(glm::vec3) },
+	{ RE::Vertex::AttributeIndex::TANGENT, sizeof(glm::vec4) },
+	{ RE::Vertex::AttributeIndex::COLOR, sizeof(glm::vec4) },
 	{ RE::Vertex::AttributeIndex::UV, sizeof(glm::vec2) },
 	{ RE::Vertex::AttributeIndex::INDEX, sizeof(uint16_t) },
 };
@@ -50,11 +51,14 @@ void loadTriangleList(RE::Mesh::Primitive::Arg &primitive_data, RE::Mesh::Primit
 	MaS::refMaterial(primitive.material);
 	RE::Vertex::Attributes primitive_vert_attrs = RE::Vertex::Attributes::NONE;
 	std::vector<RE::Shader::Definition> vert_shader_defines;
+	std::vector<RE::Shader::Definition> frag_shader_defines;
 	for (uint32_t i = 0; i < static_cast<uint32_t>(RE::Vertex::AttributeIndex::MAX); i++) {
 		if (primitive_data.attrs_data[i].get() != nullptr) {
 			RE::Vertex::AttributeIndex vert_attr_index = static_cast<RE::Vertex::AttributeIndex>(i);
 			RE::Vertex::Attributes vert_attr = attr_index_map[vert_attr_index];
 			vert_shader_defines.push_back({ .name = vert_attr_define_map[vert_attr],
+					.value = nullptr });
+			frag_shader_defines.push_back({ .name = vert_attr_define_map[vert_attr],
 					.value = nullptr });
 			primitive_vert_attrs |= vert_attr;
 			uint32_t stride = stride_map[vert_attr_index];
@@ -95,12 +99,16 @@ void loadTriangleList(RE::Mesh::Primitive::Arg &primitive_data, RE::Mesh::Primit
 		.material_options = material_options,
 		.vert_shader = { 0, 0 },
 		.frag_shader = { 0, 0 },
-	};
+		.disable_back_face_culling = MaS::getDoubleSided(primitive.material)
+	}; // ! instanced
 
-	options.vert_shader = ShS::createShader(
-			GAME_ENGINE_DEFAULT_SHADER_DIR "/base.vert.slang", vert_shader_defines);
-
-	std::vector<RE::Shader::Definition> frag_shader_defines;
+	if (MaS::getMaterialAlphaMode(primitive.material) == RE::Material::AlphaModes::BLEND) {
+		options.vert_shader = ShS::createShader(
+				GAME_ENGINE_DEFAULT_SHADER_DIR "/base.vert.slang", vert_shader_defines);
+	} else {
+		options.vert_shader = ShS::createShader(
+				GAME_ENGINE_DEFAULT_SHADER_DIR "/base.vert.slang", vert_shader_defines);
+	}
 	if ((material_options & RE::Material::Options::COLOR_TEXTURE) == RE::Material::Options::COLOR_TEXTURE) {
 		frag_shader_defines.push_back({ .name = frag_option_define_map[RE::Material::Options::COLOR_TEXTURE], .value = nullptr });
 	}
@@ -119,19 +127,45 @@ void loadTriangleList(RE::Mesh::Primitive::Arg &primitive_data, RE::Mesh::Primit
 	if ((material_options & RE::Material::Options::COLOR_FACTOR_USED) == RE::Material::Options::COLOR_FACTOR_USED) {
 		frag_shader_defines.push_back({ .name = frag_option_define_map[RE::Material::Options::COLOR_FACTOR_USED], .value = nullptr });
 	}
-	options.frag_shader =
-			ShS::createShader(GAME_ENGINE_DEFAULT_SHADER_DIR "/base.frag.slang", frag_shader_defines);
+	if (MaS::getMaterialAlphaMode(primitive.material) == RE::Material::AlphaModes::BLEND) {
+		options.frag_shader =
+				ShS::createShader(GAME_ENGINE_DEFAULT_SHADER_DIR "/alpha.frag.slang", frag_shader_defines);
+	} else {
+		options.frag_shader =
+				ShS::createShader(GAME_ENGINE_DEFAULT_SHADER_DIR "/base.frag.slang", frag_shader_defines);
+	}
 
 	primitive.pipeline = PS::createPipeline(options);
-}
-
+} // namespace
 }; // namespace
 
 // Mesh Storage
 namespace MS {
 
+void drawMeshDebugUI(RE::Mesh::Data &mesh_data) {
+	ImGui::PushID(reinterpret_cast<size_t>(&mesh_data));
+	for (int i = 0; i < mesh_data.primitives.size(); i++) {
+		if (ImGui::CollapsingHeader(("Primitive - " + std::to_string(i)).c_str())) {
+			ImGui::Text("Vert Count: %d", mesh_data.primitives[i].vert_count);
+			ImGui::Text("Index Count: %d", mesh_data.primitives[i].index_count);
+			ImGui::Text("Primitive Type: %s", getString(mesh_data.primitives[i].type));
+			ImGui::Indent();
+			MaS::drawMaterialDebugUI(mesh_data.primitives[i].material);
+			ImGui::Unindent();
+		}
+	}
+	ImGui::PopID();
+}
+
+void drawMeshDebugUI(RE::Mesh::Handle &mesh_handle) {
+	drawMeshDebugUI(mesh_storage.get(mesh_handle));
+}
+
 void init(SDL_GPUDevice *device) {
 	m_GPU_device = device;
+	registerUIDebugCallback("mesh-storage", [&]() {
+		ImGui::TextUnformatted(("Mesh count:" + std::to_string(mesh_storage.size())).c_str());
+	});
 }
 void destroy() {
 }

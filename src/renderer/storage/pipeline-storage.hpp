@@ -8,9 +8,11 @@ using PipelineStorageType = SlotMap<std::vector<RE::Pipeline::Data>, RE::Pipelin
 
 // Pipeline Storage
 namespace PS {
+void drawPipelineDebugUI(RE::Pipeline::Data &pipeline);
+void drawPipelineDebugUI(RE::Pipeline::Handle &pipeline_handle);
 void init(SDL_GPUDevice *device);
 void destroy();
 RE::Pipeline::Handle createPipeline(const RE::Pipeline::Options &options);
-SDL_GPUGraphicsPipeline* getPipelineGPUHandle(RE::Pipeline::Handle pipeline);
+SDL_GPUGraphicsPipeline *getPipelineGPUHandle(RE::Pipeline::Handle pipeline);
 bool isValid(RE::Pipeline::Handle pipeline);
 }; // namespace PS

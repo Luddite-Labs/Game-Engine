@@ -29,6 +29,8 @@ struct DrawCommand {
 	Mesh::Handle mesh;
 };
 
+glm::mat4x4 getProjectionMatrix(const RE::Camera::Handle &camera);
+
 // lifecycle
 void init();
 void destroy();
@@ -86,6 +88,9 @@ Texture::Handle getMetallicRoughnessTexture(Material::Handle material);
 float getNormalScale(Material::Handle material);
 float getMetallicFactor(Material::Handle material);
 float getRoughnessFactor(Material::Handle material);
+float getAlphaCutoff(RE::Material::Handle material);
+RE::Material::AlphaModes getAlphaMode(RE::Material::Handle material);
+bool getDoubleSided(RE::Material::Handle material);
 void setColorFactor(Material::Handle material, glm::vec4 color_factor);
 void setEmissiveFactor(Material::Handle material, glm::vec3 emissive_factor);
 void setNormalTexture(Material::Handle material, Texture::Handle normal);
@@ -96,6 +101,9 @@ void setMetallicRoughnessTexture(Material::Handle material, Texture::Handle meta
 void setNormalScale(Material::Handle material, float normal_scale);
 void setMetallicFactor(Material::Handle material, float metallic_factor);
 void setRoughnessFactor(Material::Handle material, float roughness_factor);
+void setAlphaCutoff(RE::Material::Handle material, float alpha_cutoff);
+void setAlphaMode(RE::Material::Handle material, RE::Material::AlphaModes alpha_mode);
+void setDoubleSided(RE::Material::Handle material, bool double_sided);
 bool isValid(Material::Handle material);
 }; // namespace Material
 
@@ -115,12 +123,13 @@ bool isValid(Mesh::Handle mesh);
 // Sampler storage wrappers (SaS)
 namespace Sampler {
 Sampler::Handle create(
-		Sampler::FilteringModes mag_filter = RE::Sampler::FilteringModes::NEAREST,
-		Sampler::FilteringModes min_filter = RE::Sampler::FilteringModes::NEAREST,
+		Sampler::FilteringModes mag_filter = RE::Sampler::FilteringModes::LINEAR,
+		Sampler::FilteringModes min_filter = RE::Sampler::FilteringModes::LINEAR,
 		Sampler::AddressingModes u_addressing = RE::Sampler::AddressingModes::REPEAT,
 		Sampler::AddressingModes v_addressing = RE::Sampler::AddressingModes::REPEAT,
 		Sampler::AddressingModes w_addressing = RE::Sampler::AddressingModes::REPEAT,
-		Sampler::MipMapMode mip_map_mode = RE::Sampler::MipMapMode::LINEAR);
+		Sampler::MipMapMode mip_map_mode = RE::Sampler::MipMapMode::NEAREST,
+		bool enable_anisotropy = true);
 void ref(Sampler::Handle sampler);
 void destroy(Sampler::Handle sampler);
 Sampler::FilteringModes getMagFilter(Sampler::Handle sampler);

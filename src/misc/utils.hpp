@@ -1,12 +1,9 @@
 #pragma once
 #include <cstdint>
+#include <functional>
+#include <string>
 #include <type_traits>
 
-/** \file
-
-Bitset operations for any enum type can be enabled by declaring a function
-<code>void enable_bitset_enum(T);</code> (no definition required).
-*/
 namespace bitnum {
 template <typename T>
 using is_enabled_t = std::enable_if_t<
@@ -87,6 +84,19 @@ struct Handle {
 	uint32_t generation;
 };
 
+std::string getStatusMessage();
+void setStatusMessage(std::string message);
+void registerUIDebugCallback(std::string name, std::function<void()> callback);
+void replaceUIDebugCallback(std::string name, std::function<void()> callback);
+std::vector<std::string> getRegisteredUIDebugCallbacks();
+std::function<void()> getUIDebugCallbackByName(std::string name);
+template <class T>
+inline void hash_combine(std::size_t &seed, const T &v) {
+	std::hash<T> hasher;
+	// The magic constant is the golden ratio bit pattern
+	seed ^= hasher(v) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+}
+
 #define CHECK_AND_PRINT_SDL_ERROR()                              \
 	{                                                            \
 		const char *sdl_error = SDL_GetError();                  \
@@ -96,4 +106,3 @@ struct Handle {
 			SDL_ClearError();                                    \
 		}                                                        \
 	}
-	

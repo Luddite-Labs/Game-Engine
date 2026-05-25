@@ -9,7 +9,8 @@ using MaterialStorageType = SlotMap<std::vector<RE::Material::Data>, RE::Materia
 
 // Material Storage
 namespace MaS {
-
+void drawMaterialDebugUI(RE::Material::Data &material_data);
+void drawMaterialDebugUI(RE::Material::Handle &material_handle);
 void init(SDL_GPUDevice *device);
 void destroy();
 RE::Material::Handle createMaterial();
@@ -27,6 +28,9 @@ RE::Texture::Handle getMaterialMetallicRoughnessTexture(RE::Material::Handle mat
 float getMaterialNormalScale(RE::Material::Handle material);
 float getMaterialMetallicFactor(RE::Material::Handle material);
 float getMaterialRoughnessFactor(RE::Material::Handle material);
+float getMaterialAlphaCutoff(RE::Material::Handle material);
+RE::Material::AlphaModes getMaterialAlphaMode(RE::Material::Handle material);
+bool getDoubleSided(RE::Material::Handle material);
 void setMaterialColorFactor(RE::Material::Handle material,
 		glm::vec4 color_factor);
 void setMaterialEmissiveFactor(RE::Material::Handle material,
@@ -46,5 +50,8 @@ void setMaterialMetallicFactor(RE::Material::Handle material,
 		float metallic_factor);
 void setMaterialRoughnessFactor(RE::Material::Handle material,
 		float roughness_factor);
+void setMaterialAlphaCutoff(RE::Material::Handle material, float alpha_cutoff);
+void setMaterialAlphaMode(RE::Material::Handle material, RE::Material::AlphaModes alpha_mode);
+void setDoubleSided(RE::Material::Handle material, bool double_sided);
 bool isValid(RE::Material::Handle material);
 }; // namespace MaS

@@ -6,7 +6,8 @@
 using SamplerStorageType = SlotMap<std::vector<RE::Sampler::Data>, RE::Sampler::Data, RE::Sampler::Handle>;
 
 namespace SaS {
-
+void drawSamplerDebugUI(RE::Sampler::Data &sampler_data);
+void drawSamplerDebugUI(RE::Sampler::Handle &sampler_handle);
 void init(SDL_GPUDevice *device);
 
 void destroy();
@@ -16,7 +17,8 @@ RE::Sampler::Handle createSampler(RE::Sampler::FilteringModes mag_filter,
 		RE::Sampler::AddressingModes u_addressing,
 		RE::Sampler::AddressingModes v_addressing,
 		RE::Sampler::AddressingModes w_addressing,
-		RE::Sampler::MipMapMode mip_map_mode);
+		RE::Sampler::MipMapMode mip_map_mode,
+		bool enable_anisotropy = true);
 void refSampler(RE::Sampler::Handle sampler);
 void destroySampler(RE::Sampler::Handle sampler);
 RE::Sampler::FilteringModes getSamplerMagFilter(RE::Sampler::Handle sampler);

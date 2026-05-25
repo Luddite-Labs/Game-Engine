@@ -10,6 +10,8 @@ using MeshStorageType = SlotMap<std::vector<RE::Mesh::Data>, RE::Mesh::Data, RE:
 
 // Mesh Storage
 namespace MS {
+void drawMeshDebugUI(RE::Mesh::Data& mesh_data);
+void drawMeshDebugUI(RE::Mesh::Handle& mesh_handle);
 
 void init(SDL_GPUDevice *device);
 void destroy();

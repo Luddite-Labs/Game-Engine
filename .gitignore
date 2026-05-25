@@ -15,3 +15,5 @@ __output/
 CMakeSettings.json
 
 .DS_Store
+
+.VSCodeCounter/

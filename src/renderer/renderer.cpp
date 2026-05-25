@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <filesystem>
 #include <renderer/renderer.hpp>
+#include <span>
 #include <string>
 
 #include <SDL3/SDL_filesystem.h>
@@ -72,16 +73,6 @@ RE::Shader::Handle m_default_vert_shader = { 0, 0 };
 RE::Shader::Handle m_default_frag_shader = { 0, 0 };
 RendererData m_renderer_data;
 
-glm::mat4x4 getProjectionMatrix(const RE::Camera::Handle &camera) {
-	if (CS::isCameraOrthogonal(camera)) {
-		return glm::ortho(0.0f, CS::getCameraXMag(camera), 0.0f, CS::getCameraYMag(camera), CS::getCameraNearPlane(camera),
-				CS::getCameraFarPlane(camera));
-	} else {
-		return glm::perspective(CS::getCameraFOV(camera), CS::getCameraAspectRatio(camera), CS::getCameraNearPlane(camera),
-				CS::getCameraFarPlane(camera));
-	}
-}
-
 void regenerateDepthTexture(
 		uint32_t width,
 		uint32_t height) {
@@ -100,6 +91,16 @@ bool isMeshInViewFrustum(RE::Mesh::Handle mesh, glm::mat4x4 viewProj) {
 
 namespace RE {
 
+glm::mat4x4 getProjectionMatrix(const RE::Camera::Handle &camera) {
+	if (CS::isCameraOrthogonal(camera)) {
+		return glm::ortho(0.0f, CS::getCameraXMag(camera), 0.0f, CS::getCameraYMag(camera), CS::getCameraNearPlane(camera),
+				CS::getCameraFarPlane(camera));
+	} else {
+		return glm::perspective(CS::getCameraFOV(camera), CS::getCameraAspectRatio(camera), CS::getCameraNearPlane(camera),
+				CS::getCameraFarPlane(camera));
+	}
+}
+
 void init() {
 	m_GPU_device = SDL_CreateGPUDevice(SDL_GPU_SHADERFORMAT_SPIRV, true, NULL);
 	ShS::init(m_GPU_device);
@@ -108,6 +109,7 @@ void init() {
 	PS::init(m_GPU_device);
 	MaS::init(m_GPU_device);
 	MS::init(m_GPU_device);
+	LS::init(m_GPU_device);
 	m_renderer_data.dummy_texture = TS::createTexture(1, 1,
 			RE::Texture::UsageFlags::SAMPLER,
 			RE::Texture::Format::R8G8B8A8_UNORM, RE::Texture::SampleCount::ONE, false);
@@ -136,6 +138,7 @@ void destroy() {
 	SaS::destroy();
 	TS::destroy();
 	ShS::destroy();
+	LS::destroy();
 
 	SDL_WaitForGPUIdle(m_GPU_device);
 	SDL_ReleaseWindowFromGPUDevice(m_GPU_device, m_window);
@@ -208,10 +211,51 @@ void drawToTexture(const RE::Options &renderer_options,
 					return lhs.data->pipeline.slot_index < rhs.data->pipeline.slot_index;
 				}
 			});
+	// alpha sort
+	sort(primitives.begin(), primitives.end(),
+			[&](const auto &lhs, const auto &rhs) {
+				return MaS::getMaterialAlphaMode(lhs.data->material) < MaS::getMaterialAlphaMode(rhs.data->material);
+			});
 
 	SDL_GPUCommandBuffer *command_buffer =
 			SDL_AcquireGPUCommandBuffer(m_GPU_device);
 	SDL_assert(command_buffer);
+	SDL_GPUCopyPass *copy_pass = SDL_BeginGPUCopyPass(command_buffer);
+	auto light_buffer = LS::getLightBuffer();
+	auto light_buffer_size = light_buffer.size() * sizeof(RE::Light::Data);
+	SDL_GPUBufferCreateInfo buffer_create_info = {
+		.usage = SDL_GPU_BUFFERUSAGE_GRAPHICS_STORAGE_READ,
+		.size = static_cast<uint32_t>(light_buffer_size)
+	};
+	auto gpu_light_buffer =
+			SDL_CreateGPUBuffer(m_GPU_device, &buffer_create_info);
+	SDL_GPUTransferBufferCreateInfo transfer_create_info = {
+		.usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD,
+		.size = static_cast<uint32_t>(light_buffer_size)
+	};
+	SDL_GPUTransferBuffer *transfer_buffer_handle = SDL_CreateGPUTransferBuffer(m_GPU_device, &transfer_create_info);
+	void *transfer_buffer = SDL_MapGPUTransferBuffer(m_GPU_device, transfer_buffer_handle, false);
+	std::memcpy(transfer_buffer, light_buffer.data(), light_buffer_size);
+	SDL_UnmapGPUTransferBuffer(m_GPU_device, transfer_buffer_handle);
+	SDL_GPUTransferBufferLocation transfer_buffer_location = {
+		.transfer_buffer = transfer_buffer_handle,
+		.offset = 0
+	};
+	SDL_GPUBufferRegion buffer_region = {
+		.buffer = gpu_light_buffer,
+		.offset = 0,
+		.size = static_cast<uint32_t>(light_buffer_size)
+	};
+	SDL_UploadToGPUBuffer(copy_pass, &transfer_buffer_location, &buffer_region, false);
+	SDL_EndGPUCopyPass(copy_pass);
+	auto fence = SDL_SubmitGPUCommandBufferAndAcquireFence(command_buffer);
+	SDL_assert(SDL_WaitForGPUFences(m_GPU_device, true, &fence, 1));
+	SDL_ReleaseGPUFence(m_GPU_device, fence);
+
+	command_buffer =
+			SDL_AcquireGPUCommandBuffer(m_GPU_device);
+	SDL_assert(command_buffer);
+
 	SDL_GPUColorTargetInfo color_target_infos[] = {
 		{ .texture = TS::getTextureGPUHandle(target_texture),
 				.mip_level = 0,
@@ -238,57 +282,57 @@ void drawToTexture(const RE::Options &renderer_options,
 		.cycle = true,
 		.clear_stencil = 0,
 	};
+
 	SDL_GPURenderPass *render_pass = SDL_BeginGPURenderPass(
 			command_buffer, color_target_infos, 1, &depth_stencil_target_info);
-	for (const auto& [transform, primitive, pipeline, material] : primitives) {
+	for (const auto &[transform, primitive, pipeline, material] : primitives) {
 		//! group mesh by material
-		if (MaS::isValid(primitive->material)) {
-			const auto material_factors = MaS::getMaterialFactors(primitive->material);
-			fragment_uniform_buffer.material = material_factors;
-			SDL_PushGPUFragmentUniformData(command_buffer, 0, &fragment_uniform_buffer,
-					sizeof(fragment_uniform_buffer));
-			std::vector<SDL_GPUTextureSamplerBinding> sampler_bindings;
-			sampler_bindings.push_back({ .texture = TS::getTextureGPUHandle(m_renderer_data.dummy_texture),
-					.sampler = SaS::getSamplerGPUHandle(m_renderer_data.dummy_sampler) });
-			if (TS::isValid(
-						MaS::getMaterialColorTexture(primitive->material))) {
-				sampler_bindings.back() = getSamplerBinding(
-						MaS::getMaterialColorTexture(primitive->material));
-			}
-			sampler_bindings.push_back({ .texture = TS::getTextureGPUHandle(m_renderer_data.dummy_texture),
-					.sampler = SaS::getSamplerGPUHandle(m_renderer_data.dummy_sampler) });
-			if (TS::isValid(
-						MaS::getMaterialNormalTexture(primitive->material))) {
-				sampler_bindings.back() = getSamplerBinding(
-						MaS::getMaterialNormalTexture(primitive->material));
-			}
-			sampler_bindings.push_back({ .texture = TS::getTextureGPUHandle(m_renderer_data.dummy_texture),
-					.sampler = SaS::getSamplerGPUHandle(m_renderer_data.dummy_sampler) });
-			if (TS::isValid(
-						MaS::getMaterialEmissiveTexture(primitive->material))) {
-				sampler_bindings.back() = getSamplerBinding(
-						MaS::getMaterialEmissiveTexture(primitive->material));
-			}
-			sampler_bindings.push_back({ .texture = TS::getTextureGPUHandle(m_renderer_data.dummy_texture),
-					.sampler = SaS::getSamplerGPUHandle(m_renderer_data.dummy_sampler) });
-			if (TS::isValid(
-						MaS::getMaterialMetallicRoughnessTexture(primitive->material))) {
-				sampler_bindings.back() = getSamplerBinding(
-						MaS::getMaterialMetallicRoughnessTexture(primitive->material));
-			}
-			sampler_bindings.push_back({ .texture = TS::getTextureGPUHandle(m_renderer_data.dummy_texture),
-					.sampler = SaS::getSamplerGPUHandle(m_renderer_data.dummy_sampler) });
-			if (TS::isValid(
-						MaS::getMaterialOcclusionTexture(primitive->material))) {
-				sampler_bindings.back() = getSamplerBinding(
-						MaS::getMaterialOcclusionTexture(primitive->material));
-			}
-			SDL_BindGPUFragmentSamplers(render_pass, 0, sampler_bindings.data(),
-					sampler_bindings.size());
+		const auto material_factors = MaS::getMaterialFactors(primitive->material);
+		fragment_uniform_buffer.material = material_factors;
+		SDL_PushGPUFragmentUniformData(command_buffer, 0, &fragment_uniform_buffer,
+				sizeof(fragment_uniform_buffer));
+		std::vector<SDL_GPUTextureSamplerBinding> sampler_bindings;
+		sampler_bindings.push_back({ .texture = TS::getTextureGPUHandle(m_renderer_data.dummy_texture),
+				.sampler = SaS::getSamplerGPUHandle(m_renderer_data.dummy_sampler) });
+		if (TS::isValid(
+					MaS::getMaterialColorTexture(primitive->material))) {
+			sampler_bindings.back() = getSamplerBinding(
+					MaS::getMaterialColorTexture(primitive->material));
 		}
+		sampler_bindings.push_back({ .texture = TS::getTextureGPUHandle(m_renderer_data.dummy_texture),
+				.sampler = SaS::getSamplerGPUHandle(m_renderer_data.dummy_sampler) });
+		if (TS::isValid(
+					MaS::getMaterialNormalTexture(primitive->material))) {
+			sampler_bindings.back() = getSamplerBinding(
+					MaS::getMaterialNormalTexture(primitive->material));
+		}
+		sampler_bindings.push_back({ .texture = TS::getTextureGPUHandle(m_renderer_data.dummy_texture),
+				.sampler = SaS::getSamplerGPUHandle(m_renderer_data.dummy_sampler) });
+		if (TS::isValid(
+					MaS::getMaterialEmissiveTexture(primitive->material))) {
+			sampler_bindings.back() = getSamplerBinding(
+					MaS::getMaterialEmissiveTexture(primitive->material));
+		}
+		sampler_bindings.push_back({ .texture = TS::getTextureGPUHandle(m_renderer_data.dummy_texture),
+				.sampler = SaS::getSamplerGPUHandle(m_renderer_data.dummy_sampler) });
+		if (TS::isValid(
+					MaS::getMaterialMetallicRoughnessTexture(primitive->material))) {
+			sampler_bindings.back() = getSamplerBinding(
+					MaS::getMaterialMetallicRoughnessTexture(primitive->material));
+		}
+		sampler_bindings.push_back({ .texture = TS::getTextureGPUHandle(m_renderer_data.dummy_texture),
+				.sampler = SaS::getSamplerGPUHandle(m_renderer_data.dummy_sampler) });
+		if (TS::isValid(
+					MaS::getMaterialOcclusionTexture(primitive->material))) {
+			sampler_bindings.back() = getSamplerBinding(
+					MaS::getMaterialOcclusionTexture(primitive->material));
+		}
+		SDL_BindGPUFragmentSamplers(render_pass, 0, sampler_bindings.data(),
+				sampler_bindings.size());
+		SDL_BindGPUFragmentStorageBuffers(render_pass, 0, &gpu_light_buffer, 1);
 		vertex_uniform_buffer.transform_matrices.model = transform;
 		SDL_PushGPUVertexUniformData(command_buffer, 0, &vertex_uniform_buffer,
-			sizeof(vertex_uniform_buffer));
+				sizeof(vertex_uniform_buffer));
 
 		bool has_index_data = false;
 		for (uint32_t i = 0;
@@ -327,6 +371,8 @@ void drawToTexture(const RE::Options &renderer_options,
 	}
 	SDL_EndGPURenderPass(render_pass);
 	SDL_SubmitGPUCommandBuffer(command_buffer);
+	SDL_ReleaseGPUTransferBuffer(m_GPU_device, transfer_buffer_handle);
+	SDL_ReleaseGPUBuffer(m_GPU_device, gpu_light_buffer);
 }
 
 //! deprecate once UI backend ready
@@ -446,6 +492,15 @@ float getMetallicFactor(RE::Material::Handle material) {
 float getRoughnessFactor(RE::Material::Handle material) {
 	return MaS::getMaterialRoughnessFactor(material);
 }
+float getAlphaCutoff(RE::Material::Handle material) {
+	return MaS::getMaterialAlphaCutoff(material);
+}
+RE::Material::AlphaModes getAlphaMode(RE::Material::Handle material) {
+	return MaS::getMaterialAlphaMode(material);
+}
+bool getDoubleSided(RE::Material::Handle material) {
+	return MaS::getDoubleSided(material);
+}
 void setColorFactor(RE::Material::Handle material, glm::vec4 color_factor) {
 	MaS::setMaterialColorFactor(material, color_factor);
 }
@@ -475,6 +530,15 @@ void setMetallicFactor(RE::Material::Handle material, float metallic_factor) {
 }
 void setRoughnessFactor(RE::Material::Handle material, float roughness_factor) {
 	MaS::setMaterialRoughnessFactor(material, roughness_factor);
+}
+void setAlphaCutoff(RE::Material::Handle material, float alpha_cutoff) {
+	MaS::setMaterialAlphaCutoff(material, alpha_cutoff);
+}
+void setAlphaMode(RE::Material::Handle material, RE::Material::AlphaModes alpha_mode) {
+	MaS::setMaterialAlphaMode(material, alpha_mode);
+}
+void setDoubleSided(RE::Material::Handle material, bool double_sided) {
+	MaS::setDoubleSided(material, double_sided);
 }
 bool isValid(RE::Material::Handle material) {
 	return MaS::isValid(material);
@@ -522,7 +586,8 @@ RE::Sampler::Handle create(
 		RE::Sampler::AddressingModes u_addressing,
 		RE::Sampler::AddressingModes v_addressing,
 		RE::Sampler::AddressingModes w_addressing,
-		RE::Sampler::MipMapMode mip_map_mode) {
+		RE::Sampler::MipMapMode mip_map_mode,
+		bool enable_anisotropy) {
 	return SaS::createSampler(mag_filter, min_filter, u_addressing, v_addressing, w_addressing, mip_map_mode);
 }
 void ref(RE::Sampler::Handle sampler) {
@@ -655,6 +720,9 @@ glm::vec3 getColor(Light::Handle light) {
 Light::Handle create() {
 	return LS::createLight();
 }
+std::span<RE::Light::Data> getBuffer() {
+	return LS::getLightBuffer();
+}
 void ref(Light::Handle light) {
 	LS::refLight(light);
 }
@@ -664,5 +732,6 @@ void destroy(Light::Handle light) {
 bool isValid(Light::Handle light) {
 	return LS::isValid(light);
 }
+
 }; // namespace Light
 }; // namespace RE
