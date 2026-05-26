@@ -51,6 +51,7 @@ struct Input {
 
 struct Output {
 	vector<float, 4> color : SV_Target0;
+	float depth : SV_Depth;
 };
 
 // world space
@@ -201,6 +202,7 @@ Output main(Input input) {
 		output.color.a = 0.f;
 		color.a = 0.f;
 	} else if (UB.material.alpha_mode == AlphaModes::OPAQUE) {
+		output.depth = input.position.z;
 		output.color.a = 1.f;
 		color.a = 1.f;
 	}

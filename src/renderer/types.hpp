@@ -308,6 +308,7 @@ public:
 	Shader::Handle frag_shader;
 	bool disable_back_face_culling;
 	bool instanced;
+	bool disable_depth_write;
 	bool operator==(const Options &other) const {
 		return (this->color_target_format == other.color_target_format) and
 				(this->primitive_type == other.primitive_type) and
@@ -318,7 +319,8 @@ public:
 				(this->frag_shader.slot_index == other.frag_shader.slot_index) and
 				(this->frag_shader.generation == other.frag_shader.generation) and
 				(this->disable_back_face_culling == other.disable_back_face_culling) and
-				(this->instanced == other.instanced);
+				(this->instanced == other.instanced) and
+				(this->disable_depth_write == other.disable_depth_write);
 	}
 };
 

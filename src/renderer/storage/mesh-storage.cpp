@@ -99,7 +99,8 @@ void loadTriangleList(RE::Mesh::Primitive::Arg &primitive_data, RE::Mesh::Primit
 		.material_options = material_options,
 		.vert_shader = { 0, 0 },
 		.frag_shader = { 0, 0 },
-		.disable_back_face_culling = MaS::getDoubleSided(primitive.material)
+		.disable_back_face_culling = MaS::getDoubleSided(primitive.material),
+		.disable_depth_write=false
 	}; // ! instanced
 
 	if (MaS::getMaterialAlphaMode(primitive.material) == RE::Material::AlphaModes::BLEND) {
@@ -128,6 +129,7 @@ void loadTriangleList(RE::Mesh::Primitive::Arg &primitive_data, RE::Mesh::Primit
 		frag_shader_defines.push_back({ .name = frag_option_define_map[RE::Material::Options::COLOR_FACTOR_USED], .value = nullptr });
 	}
 	if (MaS::getMaterialAlphaMode(primitive.material) == RE::Material::AlphaModes::BLEND) {
+		options.disable_depth_write	= true;
 		options.frag_shader =
 				ShS::createShader(GAME_ENGINE_DEFAULT_SHADER_DIR "/alpha.frag.slang", frag_shader_defines);
 	} else {

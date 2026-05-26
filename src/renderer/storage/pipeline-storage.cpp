@@ -11,20 +11,15 @@ template <>
 struct std::hash<RE::Pipeline::Options> {
 	size_t operator()(const RE::Pipeline::Options &p) const {
 		size_t hash = 0;
-		hash |= p.vert_shader.slot_index;
-		hash <<= 16;
-		uint16_t lossy_frag_shader =
-				static_cast<uint16_t>(p.frag_shader.slot_index);
-		hash |= lossy_frag_shader;
-		hash <<= 16;
-		hash |= static_cast<uint8_t>(p.material_options);
-		hash <<= 8;
-		hash |= static_cast<uint8_t>(p.vert_attrs);
-		hash <<= 8;
-		hash |= static_cast<uint8_t>(p.primitive_type);
-		hash <<= 8;
-		hash |= static_cast<uint8_t>(p.color_target_format);
-		hash <<= 8;
+		hash_combine(hash, p.vert_shader.slot_index);
+		hash_combine(hash, p.frag_shader.slot_index);
+		hash_combine(hash, p.material_options);
+		hash_combine(hash, p.vert_attrs);
+		hash_combine(hash, p.primitive_type);
+		hash_combine(hash, p.color_target_format);
+		hash_combine(hash, p.instanced);
+		hash_combine(hash, p.disable_back_face_culling);
+		hash_combine(hash, p.disable_depth_write);
 		return hash;
 	}
 };
@@ -218,7 +213,7 @@ RE::Pipeline::Handle createPipeline(const RE::Pipeline::Options &options) {
 			.compare_op = SDL_GPU_COMPAREOP_LESS,
 			.write_mask = 0xFF,
 			.enable_depth_test = true,
-			.enable_depth_write = true,
+			.enable_depth_write = !options.disable_depth_write,
 			.enable_stencil_test = false,
 		};
 	}
