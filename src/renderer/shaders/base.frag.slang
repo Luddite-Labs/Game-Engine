@@ -118,17 +118,17 @@ Output main(Input input) {
 	float metallic_factor;
 	float roughness_factor;
 	vector<float, 3> metallic_roughness;
-	vector<float, 4> color;
 	vector<float, 3> tangent;
 	vector<float, 3> normal;
 	vector<float, 3> position = input.world_position;
+	vector<float, 4> color = vector<float, 4>(1.f, 1.f, 1.f, 1.f);
 	vector<float, 3> camera_position = vector<float, 3>(UB.inverted_camera_matrix[0].w, UB.inverted_camera_matrix[1].w, UB.inverted_camera_matrix[2].w);
 	vector<float, 3> view_dir = normalize(camera_position - position);
 	vector<float, 3> emissive = vector<float, 3>(0.f, 0.f, 0.f);
 	vector<float, 3> emissive_texture_sampled = vector<float, 3>(0.f, 0.f, 0.f);
 	vector<float, 3> occlusion_texture_sampled = vector<float, 3>(0.f, 0.f, 0.f);
 
-	color = vector<float, 4>(1.f, 1.f, 1.f, 1.f);
+	
 	if (COLOR_TEXTURE_USED) {
 		color *= (TB.color_texture.Sample(input.uv) * UB.material.color_factor);
 	}
@@ -182,6 +182,12 @@ Output main(Input input) {
 	}
 
 	for (int i = 0; i < TB.lights.getCount(); i++) {
+		if (TB.lights[i].type == 0 
+			&& all(TB.lights[i].position_direction == vector<float, 3>(0.f, 0.f, 0.f))
+			&& all(TB.lights[i].color == vector<float, 3>(0.f, 0.f, 0.f))
+		) {
+			break;
+		}
 		switch (TB.lights[i].type) {
 			case LightType::DIRECTIONAL:
 				output.color.xyz += computeColor(

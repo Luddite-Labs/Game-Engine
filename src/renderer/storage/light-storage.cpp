@@ -5,6 +5,7 @@
 namespace {
 LightStorageType light_storage;
 SDL_GPUDevice *m_GPU_device;
+const uint32_t max_light_count = 8;
 }; // namespace
 
 // camera storage
@@ -76,6 +77,9 @@ glm::vec3 getDirection(RE::Light::Handle light) {
 }
 std::span<RE::Light::Data> getLightBuffer() {
 	return { &light_storage[0], light_storage.size() };
+}
+uint32_t getMaxLightsCount() {
+	return max_light_count;
 }
 RE::Light::Handle createLight() {
 	RE::Light::Handle light = light_storage.insert({ .direction = { 1.f, 0.f, 0.f }, .color = { 1.f, 1.f, 1.f }, .type = RE::Light::DIRECTIONAL });

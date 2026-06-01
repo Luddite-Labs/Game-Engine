@@ -49,6 +49,23 @@ struct Options {
 	Layers layers;
 };
 
+namespace Buffer {
+HANDLE();
+enum Usage {
+	VERTEX = SDL_GPU_BUFFERUSAGE_VERTEX,
+	INDEX = SDL_GPU_BUFFERUSAGE_INDEX,
+	INDIRECT = SDL_GPU_BUFFERUSAGE_INDIRECT,
+	GRAPHICS_STORAGE_READ = SDL_GPU_BUFFERUSAGE_GRAPHICS_STORAGE_READ,
+	COMPUTE_STORAGE_READ = SDL_GPU_BUFFERUSAGE_COMPUTE_STORAGE_READ,
+	COMPUTE_STORAGE_WRITE = SDL_GPU_BUFFERUSAGE_COMPUTE_STORAGE_WRITE,
+};
+struct Data {
+	Usage usage;
+	uint32_t size;
+	SDL_GPUBuffer* gpu_handle;
+};
+}; // namespace Buffer
+
 namespace Camera {
 HANDLE();
 struct Data {

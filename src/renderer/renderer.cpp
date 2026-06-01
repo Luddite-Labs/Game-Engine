@@ -7,6 +7,7 @@
 #include <SDL3/SDL_filesystem.h>
 #include <SDL3/SDL_gpu.h>
 
+#include <renderer/graph.hpp>
 #include <renderer/storage/camera-storage.hpp>
 #include <renderer/storage/light-storage.hpp>
 #include <renderer/storage/material-storage.hpp>
@@ -51,6 +52,7 @@ struct RendererData {
 	RE::Texture::Handle depth_texture;
 	RE::Sampler::Handle dummy_sampler;
 	RE::Material::Handle dummy_material;
+	RE::Buffer::Handle light_buffer;
 };
 
 struct VertexUniformBuffer {
@@ -103,6 +105,7 @@ glm::mat4x4 getProjectionMatrix(const RE::Camera::Handle &camera) {
 
 void init() {
 	m_GPU_device = SDL_CreateGPUDevice(SDL_GPU_SHADERFORMAT_SPIRV, true, NULL);
+	RE::Graph::init(m_GPU_device);
 	ShS::init(m_GPU_device);
 	TS::init(m_GPU_device);
 	SaS::init(m_GPU_device);
@@ -110,6 +113,7 @@ void init() {
 	MaS::init(m_GPU_device);
 	MS::init(m_GPU_device);
 	LS::init(m_GPU_device);
+	BS::init(m_GPU_device);
 	m_renderer_data.dummy_texture = TS::createTexture(1, 1,
 			RE::Texture::UsageFlags::SAMPLER,
 			RE::Texture::Format::R8G8B8A8_UNORM, RE::Texture::SampleCount::ONE, false);
@@ -128,6 +132,7 @@ void init() {
 			RE::Texture::UsageFlags::SAMPLER | RE::Texture::UsageFlags::DEPTH_STENCIL_TARGET,
 			RE::Texture::Format::D24_UNORM, RE::Texture::SampleCount::ONE, false);
 	m_renderer_data.dummy_material = MaS::createMaterial();
+	m_renderer_data.light_buffer = BS::createBuffer(RE::Buffer::Usage::GRAPHICS_STORAGE_READ, LS::getMaxLightsCount() * sizeof(RE::Light::Data));
 }
 
 void destroy() {
@@ -217,163 +222,165 @@ void drawToTexture(const RE::Options &renderer_options,
 				return MaS::getMaterialAlphaMode(lhs.data->material) < MaS::getMaterialAlphaMode(rhs.data->material);
 			});
 
-	SDL_GPUCommandBuffer *command_buffer =
-			SDL_AcquireGPUCommandBuffer(m_GPU_device);
-	SDL_assert(command_buffer);
-	SDL_GPUCopyPass *copy_pass = SDL_BeginGPUCopyPass(command_buffer);
-	auto light_buffer = LS::getLightBuffer();
-	auto light_buffer_size = light_buffer.size() * sizeof(RE::Light::Data);
-	SDL_GPUBufferCreateInfo buffer_create_info = {
-		.usage = SDL_GPU_BUFFERUSAGE_GRAPHICS_STORAGE_READ,
-		.size = static_cast<uint32_t>(light_buffer_size)
-	};
-	auto gpu_light_buffer =
-			SDL_CreateGPUBuffer(m_GPU_device, &buffer_create_info);
-	SDL_GPUTransferBufferCreateInfo transfer_create_info = {
-		.usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD,
-		.size = static_cast<uint32_t>(light_buffer_size)
-	};
-	SDL_GPUTransferBuffer *transfer_buffer_handle = SDL_CreateGPUTransferBuffer(m_GPU_device, &transfer_create_info);
-	void *transfer_buffer = SDL_MapGPUTransferBuffer(m_GPU_device, transfer_buffer_handle, false);
-	std::memcpy(transfer_buffer, light_buffer.data(), light_buffer_size);
-	SDL_UnmapGPUTransferBuffer(m_GPU_device, transfer_buffer_handle);
-	SDL_GPUTransferBufferLocation transfer_buffer_location = {
-		.transfer_buffer = transfer_buffer_handle,
-		.offset = 0
-	};
-	SDL_GPUBufferRegion buffer_region = {
-		.buffer = gpu_light_buffer,
-		.offset = 0,
-		.size = static_cast<uint32_t>(light_buffer_size)
-	};
-	SDL_UploadToGPUBuffer(copy_pass, &transfer_buffer_location, &buffer_region, false);
-	SDL_EndGPUCopyPass(copy_pass);
-	auto fence = SDL_SubmitGPUCommandBufferAndAcquireFence(command_buffer);
-	SDL_assert(SDL_WaitForGPUFences(m_GPU_device, true, &fence, 1));
-	SDL_ReleaseGPUFence(m_GPU_device, fence);
+	{
+		RE::Graph::addPass("LIGHTS GPU TRANSFER", RE::Graph::PassType::COPY, [&](SDL_GPUCommandBuffer *command_buffer) {
+			SDL_GPUCopyPass *copy_pass = SDL_BeginGPUCopyPass(command_buffer);
+			auto light_buffer = LS::getLightBuffer();
+			auto light_buffer_size = light_buffer.size() * sizeof(RE::Light::Data);
+			SDL_GPUTransferBufferCreateInfo transfer_create_info = {
+				.usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD,
+				.size = static_cast<uint32_t>(light_buffer_size)
+			};
+			SDL_GPUTransferBuffer *transfer_buffer_handle = SDL_CreateGPUTransferBuffer(m_GPU_device, &transfer_create_info);
+			void *transfer_buffer = SDL_MapGPUTransferBuffer(m_GPU_device, transfer_buffer_handle, false);
+			std::memcpy(transfer_buffer, light_buffer.data(), light_buffer_size);
+			SDL_UnmapGPUTransferBuffer(m_GPU_device, transfer_buffer_handle);
+			SDL_GPUTransferBufferLocation transfer_buffer_location = {
+				.transfer_buffer = transfer_buffer_handle,
+				.offset = 0
+			};
+			SDL_GPUBufferRegion buffer_region = {
+				.buffer = reinterpret_cast<SDL_GPUBuffer *>(RE::Graph::getDeviceHandle("LIGHT BUFFER")),
+				.offset = 0,
+				.size = static_cast<uint32_t>(light_buffer_size)
+			};
+			SDL_UploadToGPUBuffer(copy_pass, &transfer_buffer_location, &buffer_region, false);
+			SDL_ReleaseGPUTransferBuffer(m_GPU_device, transfer_buffer_handle);
+			SDL_EndGPUCopyPass(copy_pass);
+		});
+		RE::Graph::importBuffer("LIGHTS GPU TRANSFER", "LIGHT BUFFER", m_renderer_data.light_buffer);
+		RE::Graph::writeBuffer("LIGHTS GPU TRANSFER", "LIGHT BUFFER");
+	}
 
-	command_buffer =
-			SDL_AcquireGPUCommandBuffer(m_GPU_device);
-	SDL_assert(command_buffer);
-
-	SDL_GPUColorTargetInfo color_target_infos[] = {
-		{ .texture = TS::getTextureGPUHandle(target_texture),
-				.mip_level = 0,
-				.layer_or_depth_plane = 0,
-				.clear_color = { .r = renderer_options.clear_color.r,
-						.g = renderer_options.clear_color.g,
-						.b = renderer_options.clear_color.b,
-						.a = renderer_options.clear_color.a },
+	{
+		RE::Graph::addPass("SHADING PASS", RE::Graph::PassType::RENDER, [&](SDL_GPUCommandBuffer *command_buffer) {
+			SDL_GPUColorTargetInfo color_target_infos[] = {
+				{ .texture = reinterpret_cast<SDL_GPUTexture *>(RE::Graph::getDeviceHandle("FINAL RENDER TARGET")),
+						.mip_level = 0,
+						.layer_or_depth_plane = 0,
+						.clear_color = { .r = renderer_options.clear_color.r,
+								.g = renderer_options.clear_color.g,
+								.b = renderer_options.clear_color.b,
+								.a = renderer_options.clear_color.a },
+						.load_op = SDL_GPU_LOADOP_CLEAR,
+						.store_op = SDL_GPU_STOREOP_STORE,
+						.resolve_texture = nullptr,
+						.resolve_mip_level = 0,
+						.resolve_layer = 0,
+						.cycle = false,
+						.cycle_resolve_texture = false }
+			};
+			SDL_GPUDepthStencilTargetInfo depth_stencil_target_info = {
+				.texture = reinterpret_cast<SDL_GPUTexture *>(RE::Graph::getDeviceHandle("DEPTH TARGET")),
+				.clear_depth = 1,
 				.load_op = SDL_GPU_LOADOP_CLEAR,
 				.store_op = SDL_GPU_STOREOP_STORE,
-				.resolve_texture = nullptr,
-				.resolve_mip_level = 0,
-				.resolve_layer = 0,
-				.cycle = false,
-				.cycle_resolve_texture = false }
-	};
-	SDL_GPUDepthStencilTargetInfo depth_stencil_target_info = {
-		.texture = TS::getTextureGPUHandle(m_renderer_data.depth_texture),
-		.clear_depth = 1,
-		.load_op = SDL_GPU_LOADOP_CLEAR,
-		.store_op = SDL_GPU_STOREOP_STORE,
-		.stencil_load_op = SDL_GPU_LOADOP_CLEAR,
-		.stencil_store_op = SDL_GPU_STOREOP_STORE,
-		.cycle = true,
-		.clear_stencil = 0,
-	};
+				.stencil_load_op = SDL_GPU_LOADOP_CLEAR,
+				.stencil_store_op = SDL_GPU_STOREOP_STORE,
+				.cycle = true,
+				.clear_stencil = 0,
+			};
 
-	SDL_GPURenderPass *render_pass = SDL_BeginGPURenderPass(
-			command_buffer, color_target_infos, 1, &depth_stencil_target_info);
-	for (const auto &[transform, primitive, pipeline, material] : primitives) {
-		//! group mesh by material
-		const auto material_factors = MaS::getMaterialFactors(primitive->material);
-		fragment_uniform_buffer.material = material_factors;
-		SDL_PushGPUFragmentUniformData(command_buffer, 0, &fragment_uniform_buffer,
-				sizeof(fragment_uniform_buffer));
-		std::vector<SDL_GPUTextureSamplerBinding> sampler_bindings;
-		sampler_bindings.push_back({ .texture = TS::getTextureGPUHandle(m_renderer_data.dummy_texture),
-				.sampler = SaS::getSamplerGPUHandle(m_renderer_data.dummy_sampler) });
-		if (TS::isValid(
-					MaS::getMaterialColorTexture(primitive->material))) {
-			sampler_bindings.back() = getSamplerBinding(
-					MaS::getMaterialColorTexture(primitive->material));
-		}
-		sampler_bindings.push_back({ .texture = TS::getTextureGPUHandle(m_renderer_data.dummy_texture),
-				.sampler = SaS::getSamplerGPUHandle(m_renderer_data.dummy_sampler) });
-		if (TS::isValid(
-					MaS::getMaterialNormalTexture(primitive->material))) {
-			sampler_bindings.back() = getSamplerBinding(
-					MaS::getMaterialNormalTexture(primitive->material));
-		}
-		sampler_bindings.push_back({ .texture = TS::getTextureGPUHandle(m_renderer_data.dummy_texture),
-				.sampler = SaS::getSamplerGPUHandle(m_renderer_data.dummy_sampler) });
-		if (TS::isValid(
-					MaS::getMaterialEmissiveTexture(primitive->material))) {
-			sampler_bindings.back() = getSamplerBinding(
-					MaS::getMaterialEmissiveTexture(primitive->material));
-		}
-		sampler_bindings.push_back({ .texture = TS::getTextureGPUHandle(m_renderer_data.dummy_texture),
-				.sampler = SaS::getSamplerGPUHandle(m_renderer_data.dummy_sampler) });
-		if (TS::isValid(
-					MaS::getMaterialMetallicRoughnessTexture(primitive->material))) {
-			sampler_bindings.back() = getSamplerBinding(
-					MaS::getMaterialMetallicRoughnessTexture(primitive->material));
-		}
-		sampler_bindings.push_back({ .texture = TS::getTextureGPUHandle(m_renderer_data.dummy_texture),
-				.sampler = SaS::getSamplerGPUHandle(m_renderer_data.dummy_sampler) });
-		if (TS::isValid(
-					MaS::getMaterialOcclusionTexture(primitive->material))) {
-			sampler_bindings.back() = getSamplerBinding(
-					MaS::getMaterialOcclusionTexture(primitive->material));
-		}
-		SDL_BindGPUFragmentSamplers(render_pass, 0, sampler_bindings.data(),
-				sampler_bindings.size());
-		SDL_BindGPUFragmentStorageBuffers(render_pass, 0, &gpu_light_buffer, 1);
-		vertex_uniform_buffer.transform_matrices.model = transform;
-		SDL_PushGPUVertexUniformData(command_buffer, 0, &vertex_uniform_buffer,
-				sizeof(vertex_uniform_buffer));
-
-		bool has_index_data = false;
-		for (uint32_t i = 0;
-				i < static_cast<uint32_t>(RE::Vertex::AttributeIndex::MAX); i++) {
-			if (static_cast<RE::Vertex::AttributeIndex>(i) ==
-							RE::Vertex::AttributeIndex::INDEX and
-					primitive->attrs_data[i].gpu_buffer != nullptr) {
-				has_index_data = true;
-				SDL_GPUBufferBinding index_binding = {
-					.buffer = primitive->attrs_data[i].gpu_buffer, .offset = 0
-				};
-				if (primitive->index_count <= UINT16_MAX) {
-					SDL_BindGPUIndexBuffer(render_pass, &index_binding,
-							SDL_GPU_INDEXELEMENTSIZE_16BIT);
-				} else {
-					SDL_BindGPUIndexBuffer(render_pass, &index_binding,
-							SDL_GPU_INDEXELEMENTSIZE_32BIT);
+			SDL_GPURenderPass *render_pass = SDL_BeginGPURenderPass(
+					command_buffer, color_target_infos, 1, &depth_stencil_target_info);
+			for (const auto &[transform, primitive, pipeline, material] : primitives) {
+				//! group mesh by material
+				const auto material_factors = MaS::getMaterialFactors(primitive->material);
+				fragment_uniform_buffer.material = material_factors;
+				SDL_PushGPUFragmentUniformData(command_buffer, 0, &fragment_uniform_buffer,
+						sizeof(fragment_uniform_buffer));
+				std::vector<SDL_GPUTextureSamplerBinding> sampler_bindings;
+				sampler_bindings.push_back({ .texture = TS::getTextureGPUHandle(m_renderer_data.dummy_texture),
+						.sampler = SaS::getSamplerGPUHandle(m_renderer_data.dummy_sampler) });
+				if (TS::isValid(
+							MaS::getMaterialColorTexture(primitive->material))) {
+					sampler_bindings.back() = getSamplerBinding(
+							MaS::getMaterialColorTexture(primitive->material));
 				}
-			} else {
-				if (primitive->attrs_data[i].gpu_buffer != nullptr) {
-					SDL_GPUBufferBinding binding = { .buffer = primitive->attrs_data[i].gpu_buffer, .offset = 0 };
-					SDL_BindGPUVertexBuffers(render_pass, i, &binding,
-							1);
+				sampler_bindings.push_back({ .texture = TS::getTextureGPUHandle(m_renderer_data.dummy_texture),
+						.sampler = SaS::getSamplerGPUHandle(m_renderer_data.dummy_sampler) });
+				if (TS::isValid(
+							MaS::getMaterialNormalTexture(primitive->material))) {
+					sampler_bindings.back() = getSamplerBinding(
+							MaS::getMaterialNormalTexture(primitive->material));
+				}
+				sampler_bindings.push_back({ .texture = TS::getTextureGPUHandle(m_renderer_data.dummy_texture),
+						.sampler = SaS::getSamplerGPUHandle(m_renderer_data.dummy_sampler) });
+				if (TS::isValid(
+							MaS::getMaterialEmissiveTexture(primitive->material))) {
+					sampler_bindings.back() = getSamplerBinding(
+							MaS::getMaterialEmissiveTexture(primitive->material));
+				}
+				sampler_bindings.push_back({ .texture = TS::getTextureGPUHandle(m_renderer_data.dummy_texture),
+						.sampler = SaS::getSamplerGPUHandle(m_renderer_data.dummy_sampler) });
+				if (TS::isValid(
+							MaS::getMaterialMetallicRoughnessTexture(primitive->material))) {
+					sampler_bindings.back() = getSamplerBinding(
+							MaS::getMaterialMetallicRoughnessTexture(primitive->material));
+				}
+				sampler_bindings.push_back({ .texture = TS::getTextureGPUHandle(m_renderer_data.dummy_texture),
+						.sampler = SaS::getSamplerGPUHandle(m_renderer_data.dummy_sampler) });
+				if (TS::isValid(
+							MaS::getMaterialOcclusionTexture(primitive->material))) {
+					sampler_bindings.back() = getSamplerBinding(
+							MaS::getMaterialOcclusionTexture(primitive->material));
+				}
+				SDL_BindGPUFragmentSamplers(render_pass, 0, sampler_bindings.data(),
+						sampler_bindings.size());
+				auto lights_buffer = reinterpret_cast<SDL_GPUBuffer *>(RE::Graph::getDeviceHandle("LIGHT BUFFER"));
+				SDL_BindGPUFragmentStorageBuffers(render_pass, 0, &lights_buffer, 1);
+				vertex_uniform_buffer.transform_matrices.model = transform;
+				SDL_PushGPUVertexUniformData(command_buffer, 0, &vertex_uniform_buffer,
+						sizeof(vertex_uniform_buffer));
+
+				bool has_index_data = false;
+				for (uint32_t i = 0;
+						i < static_cast<uint32_t>(RE::Vertex::AttributeIndex::MAX); i++) {
+					if (static_cast<RE::Vertex::AttributeIndex>(i) ==
+									RE::Vertex::AttributeIndex::INDEX and
+							primitive->attrs_data[i].gpu_buffer != nullptr) {
+						has_index_data = true;
+						SDL_GPUBufferBinding index_binding = {
+							.buffer = primitive->attrs_data[i].gpu_buffer, .offset = 0
+						};
+						if (primitive->index_count <= UINT16_MAX) {
+							SDL_BindGPUIndexBuffer(render_pass, &index_binding,
+									SDL_GPU_INDEXELEMENTSIZE_16BIT);
+						} else {
+							SDL_BindGPUIndexBuffer(render_pass, &index_binding,
+									SDL_GPU_INDEXELEMENTSIZE_32BIT);
+						}
+					} else {
+						if (primitive->attrs_data[i].gpu_buffer != nullptr) {
+							SDL_GPUBufferBinding binding = { .buffer = primitive->attrs_data[i].gpu_buffer, .offset = 0 };
+							SDL_BindGPUVertexBuffers(render_pass, i, &binding,
+									1);
+						}
+					}
+				}
+				//! nullDescriptor VUlkan vertex bindings in the future
+				SDL_BindGPUGraphicsPipeline(
+						render_pass, PS::getPipelineGPUHandle(primitive->pipeline));
+				if (has_index_data) {
+					SDL_DrawGPUIndexedPrimitives(render_pass, primitive->index_count, 1, 0, 0,
+							0);
+				} else {
+					SDL_DrawGPUPrimitives(render_pass, primitive->vert_count, 1, 0, 0);
 				}
 			}
-		}
-		//! nullDescriptor VUlkan vertex bindings in the future
-		SDL_BindGPUGraphicsPipeline(
-				render_pass, PS::getPipelineGPUHandle(primitive->pipeline));
-		if (has_index_data) {
-			SDL_DrawGPUIndexedPrimitives(render_pass, primitive->index_count, 1, 0, 0,
-					0);
-		} else {
-			SDL_DrawGPUPrimitives(render_pass, primitive->vert_count, 1, 0, 0);
-		}
+			SDL_EndGPURenderPass(render_pass);
+		});
+		RE::Graph::importBuffer("SHADING PASS", "LIGHT BUFFER", m_renderer_data.light_buffer);
+		RE::Graph::readBuffer("SHADING PASS", "LIGHT BUFFER");
+		RE::Graph::importTexture("SHADING PASS", "FINAL RENDER TARGET", target_texture);
+		RE::Graph::writeTexture("SHADING PASS", "FINAL RENDER TARGET");
+		RE::Graph::importTexture("SHADING PASS", "DEPTH TARGET", m_renderer_data.depth_texture);
+		RE::Graph::writeTextureDepth("SHADING PASS", "DEPTH TARGET");
 	}
-	SDL_EndGPURenderPass(render_pass);
-	SDL_SubmitGPUCommandBuffer(command_buffer);
-	SDL_ReleaseGPUTransferBuffer(m_GPU_device, transfer_buffer_handle);
-	SDL_ReleaseGPUBuffer(m_GPU_device, gpu_light_buffer);
+
+	RE::Graph::execute();
 }
+
 
 //! deprecate once UI backend ready
 uintptr_t getTexture(RE::Texture::Handle texture) {

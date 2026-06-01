@@ -22,6 +22,7 @@ glm::vec3 getPosition(RE::Light::Handle light);
 glm::vec3 getColor(RE::Light::Handle light);
 glm::vec3 getDirection(RE::Light::Handle light);
 std::span<RE::Light::Data> getLightBuffer();
+uint32_t getMaxLightsCount();
 RE::Light::Handle createLight();
 void refLight(RE::Light::Handle light);
 void destroyLight(RE::Light::Handle light);
