@@ -1,0 +1,618 @@
+#pragma once
+
+#include "entt/entity/fwd.hpp"
+#include "fastgltf/math.hpp"
+#include "glm/ext/matrix_transform.hpp"
+#include "glm/fwd.hpp"
+#include "glm/gtc/quaternion.hpp"
+#include "misc/log.hpp"
+#include "renderer/wrappers.hpp"
+#include <cstdint>
+#include <filesystem>
+#include <memory>
+#include <queue>
+#include <variant>
+#include <vector>
+#define STB_IMAGE_IMPLEMENTATION
+#include "glm/gtc/type_ptr.hpp"
+#include "renderer/renderer.hpp"
+#include "scene/scene-manager.hpp"
+#include "scene/scene.hpp"
+#include <string>
+
+#include <fastgltf/core.hpp>
+#include <fastgltf/glm_element_traits.hpp>
+#include <fastgltf/tools.hpp>
+#include <fastgltf/types.hpp>
+#include <glm/gtx/matrix_decompose.hpp>
+#include <loaders/mikktspace.hpp>
+#include <renderer/types.hpp>
+#include <scene/components.hpp>
+#include <scene/scene.hpp>
+#include <stb_image.h>
+
+struct Image {
+	std::shared_ptr<uint8_t> buffer;
+	uint32_t width;
+	uint32_t height;
+	uint8_t channels;
+};
+
+[[nodiscard]] std::vector<RE::Sampler::Shared>
+loadSamplers(const fastgltf::Asset &asset) {
+	setStatusMessage("Loading samplers from GLTF file");
+	std::vector<RE::Sampler::Shared> samplers;
+	RE::Sampler::FilteringModes mag_filter = RE::Sampler::FilteringModes::NEAREST;
+	RE::Sampler::FilteringModes min_filter = RE::Sampler::FilteringModes::NEAREST;
+	RE::Sampler::AddressingModes u_addressing = RE::Sampler::AddressingModes::REPEAT;
+	RE::Sampler::AddressingModes v_addressing = RE::Sampler::AddressingModes::REPEAT;
+	RE::Sampler::AddressingModes w_addressing = RE::Sampler::AddressingModes::REPEAT;
+	RE::Sampler::MipMapMode mip_map_mode = RE::Sampler::MipMapMode::NEAREST;
+	bool enable_anisotropy = false;
+	for (const auto &asset_sampler : asset.samplers) {
+		if (asset_sampler.magFilter.has_value()) {
+			switch (asset_sampler.magFilter.value()) {
+				case fastgltf::Filter::Nearest:
+					mag_filter = RE::Sampler::FilteringModes::NEAREST;
+					break;
+				case fastgltf::Filter::Linear:
+					mag_filter = RE::Sampler::FilteringModes::LINEAR;
+					break;
+			}
+		}
+		if (asset_sampler.minFilter.has_value()) {
+			switch (asset_sampler.minFilter.value()) {
+				case fastgltf::Filter::Nearest:
+					min_filter = RE::Sampler::FilteringModes::NEAREST;
+					break;
+				case fastgltf::Filter::Linear:
+					min_filter = RE::Sampler::FilteringModes::LINEAR;
+					break;
+				case fastgltf::Filter::NearestMipMapNearest:
+					enable_anisotropy = true;
+					min_filter = RE::Sampler::FilteringModes::NEAREST;
+					mip_map_mode = RE::Sampler::MipMapMode::NEAREST;
+					break;
+				case fastgltf::Filter::NearestMipMapLinear:
+					enable_anisotropy = true;
+					min_filter = RE::Sampler::FilteringModes::NEAREST;
+					mip_map_mode = RE::Sampler::MipMapMode::LINEAR;
+					break;
+				case fastgltf::Filter::LinearMipMapNearest:
+					enable_anisotropy = true;
+					min_filter = RE::Sampler::FilteringModes::LINEAR;
+					mip_map_mode = RE::Sampler::MipMapMode::NEAREST;
+					break;
+				case fastgltf::Filter::LinearMipMapLinear:
+					enable_anisotropy = true;
+					min_filter = RE::Sampler::FilteringModes::LINEAR;
+					mip_map_mode = RE::Sampler::MipMapMode::LINEAR;
+					break;
+			}
+		}
+		switch (asset_sampler.wrapS) {
+			case fastgltf::Wrap::Repeat:
+				u_addressing = RE::Sampler::AddressingModes::REPEAT;
+				break;
+			case fastgltf::Wrap::ClampToEdge:
+				u_addressing = RE::Sampler::AddressingModes::CLAMP_TO_EDGE;
+				break;
+			case fastgltf::Wrap::MirroredRepeat:
+				u_addressing = RE::Sampler::AddressingModes::MIRRORED_REPEAT;
+				break;
+		}
+		switch (asset_sampler.wrapT) {
+			case fastgltf::Wrap::Repeat:
+				v_addressing = RE::Sampler::AddressingModes::REPEAT;
+				break;
+			case fastgltf::Wrap::ClampToEdge:
+				v_addressing = RE::Sampler::AddressingModes::CLAMP_TO_EDGE;
+				break;
+			case fastgltf::Wrap::MirroredRepeat:
+				v_addressing = RE::Sampler::AddressingModes::MIRRORED_REPEAT;
+				break;
+		}
+		RE::Sampler::Shared sampler{ RE::Sampler::create(mag_filter, min_filter, u_addressing, v_addressing, w_addressing, mip_map_mode, enable_anisotropy) };
+		samplers.push_back(sampler);
+	}
+	return std::move(samplers);
+}
+
+[[nodiscard]] std::vector<Image> loadImages(const fastgltf::Asset &asset,
+		const std::string &gltf_path) {
+	setStatusMessage("Loading images from GLTF file");
+	std::vector<Image> images;
+	for (auto image : asset.images) {
+		std::visit(
+				fastgltf::visitor{
+						[](auto &arg) {},
+						[&](fastgltf::sources::URI &filePath) {
+							assert(filePath.fileByteOffset ==
+									0); // We don't support offsets with stbi.
+							assert(filePath.uri.isLocalPath()); // We're only capable of
+																// loading local files.
+							int width, height, nrChannels;
+							const std::string path =
+									(gltf_path + "/" + std::string(filePath.uri.path()));
+							uint8_t *data =
+									stbi_load(path.c_str(), &width, &height, &nrChannels, 4);
+							images.push_back(
+									{ .buffer = std::shared_ptr<uint8_t>(
+											  data, [](uint8_t *data) { stbi_image_free(data); }),
+											.width = static_cast<uint32_t>(width),
+											.height = static_cast<uint32_t>(height),
+											.channels = 4 });
+						},
+						[&](fastgltf::sources::Array &vector) {
+							int width, height, nrChannels;
+							unsigned char *data = stbi_load_from_memory(
+									reinterpret_cast<const stbi_uc *>(vector.bytes.data()),
+									static_cast<int>(vector.bytes.size()), &width, &height,
+									&nrChannels, 4);
+							images.push_back(
+									{ .buffer = std::shared_ptr<uint8_t>(
+											  data, [](uint8_t *data) { stbi_image_free(data); }),
+											.width = static_cast<uint32_t>(width),
+											.height = static_cast<uint32_t>(height),
+											.channels = 4 });
+						},
+						[&](fastgltf::sources::BufferView &view) {
+							auto &bufferView = asset.bufferViews[view.bufferViewIndex];
+							auto &buffer = asset.buffers[bufferView.bufferIndex];
+							std::visit(
+									fastgltf::visitor{
+											[](auto &arg) {},
+											[&](fastgltf::sources::Array &vector) {
+												int width, height, nrChannels;
+												unsigned char *data = stbi_load_from_memory(
+														reinterpret_cast<const stbi_uc *>(
+																vector.bytes.data() + bufferView.byteOffset),
+														static_cast<int>(bufferView.byteLength), &width,
+														&height, &nrChannels, 4);
+												images.push_back(
+														{ .buffer = std::shared_ptr<uint8_t>(
+																  data,
+																  [](uint8_t *data) { stbi_image_free(data); }),
+																.width = static_cast<uint32_t>(width),
+																.height = static_cast<uint32_t>(height),
+																.channels = 4 });
+											} },
+									buffer.data);
+						},
+				},
+				image.data);
+	}
+	return std::move(images);
+}
+
+[[nodiscard]] std::vector<RE::Material::Shared>
+loadMaterials(const fastgltf::Asset &asset,
+		const std::vector<RE::Sampler::Shared> &samplers,
+		const std::vector<Image> &images) {
+	setStatusMessage("Loading materials from GLTF file");
+	std::vector<RE::Material::Shared> materials;
+	for (const auto &asset_material : asset.materials) {
+		RE::Material::Shared material{ RE::Material::create() };
+		RE::Material::setColorFactor(material.handle,
+				glm::make_vec4(asset_material.pbrData.baseColorFactor.data()));
+		RE::Material::setEmissiveFactor(material.handle,
+				glm::make_vec4(asset_material.emissiveFactor.data()));
+		RE::Material::setMetallicFactor(material.handle, asset_material.pbrData.metallicFactor);
+		RE::Material::setRoughnessFactor(material.handle, asset_material.pbrData.roughnessFactor);
+		RE::Material::setDoubleSided(material.handle, asset_material.doubleSided);
+		RE::Material::setAlphaCutoff(material.handle, asset_material.alphaCutoff);
+		switch (asset_material.alphaMode) {
+			case fastgltf::AlphaMode::Opaque:
+				RE::Material::setAlphaMode(material.handle, RE::Material::AlphaModes::OPAQUE);
+				break;
+			case fastgltf::AlphaMode::Mask:
+				RE::Material::setAlphaMode(material.handle, RE::Material::AlphaModes::MASK);
+				break;
+			case fastgltf::AlphaMode::Blend:
+				RE::Material::setAlphaMode(material.handle, RE::Material::AlphaModes::BLEND);
+				break;
+		}
+		if (asset_material.pbrData.baseColorTexture.has_value()) {
+			auto &asset_texture = asset.textures[asset_material.pbrData.baseColorTexture.value().textureIndex];
+			if (asset_texture.imageIndex.has_value()) {
+				const auto &image = images[asset_texture.imageIndex.value()];
+				bool generate_mip_maps = false;
+				if (asset_texture.samplerIndex.has_value() and asset.samplers[asset_texture.samplerIndex.value()].minFilter != fastgltf::Filter::Linear and asset.samplers[asset_texture.samplerIndex.value()].minFilter != fastgltf::Filter::Nearest) {
+					generate_mip_maps = true;
+				}
+				RE::Texture::Shared texture{
+					RE::Texture::create(
+							image.width, image.height,
+							RE::Texture::UsageFlags::SAMPLER | RE::Texture::UsageFlags::COLOR_TARGET,
+							RE::Texture::Format::R8G8B8A8_UNORM_SRGB,
+							RE::Texture::SampleCount::ONE,
+							generate_mip_maps)
+				};
+				RE::Texture::uploadBuffer(
+						texture.handle, image.buffer, 0,
+						static_cast<size_t>(image.width) *
+								static_cast<size_t>(image.height) *
+								static_cast<size_t>(image.channels));
+				if (asset_texture.samplerIndex.has_value()) {
+					const auto &sampler = samplers[asset_texture.samplerIndex.value()];
+					RE::Texture::setSampler(texture.handle, sampler.handle);
+				}
+				RE::Material::setColorTexture(material.handle,
+						texture.handle); // tex coord index transform
+			}
+		}
+		if (asset_material.normalTexture.has_value()) {
+			auto &asset_texture = asset.textures[asset_material.normalTexture.value().textureIndex];
+			if (asset_texture.imageIndex.has_value()) {
+				const auto &image = images[asset_texture.imageIndex.value()];
+				RE::Texture::Shared texture{
+					RE::Texture::create(
+							image.width, image.height,
+							RE::Texture::UsageFlags::SAMPLER,
+							RE::Texture::Format::R8G8B8A8_UNORM)
+				};
+				RE::Texture::uploadBuffer(
+						texture.handle, image.buffer, 0,
+						static_cast<size_t>(image.width) *
+								static_cast<size_t>(image.height) *
+								static_cast<size_t>(image.channels));
+				if (asset_texture.samplerIndex.has_value()) {
+					const auto &sampler = samplers[asset_texture.samplerIndex.value()];
+					RE::Texture::setSampler(texture.handle, sampler.handle);
+				}
+				RE::Material::setNormalTexture(material.handle,
+						texture.handle); // tex coord index transform
+			}
+		}
+		if (asset_material.emissiveTexture.has_value()) {
+			auto &asset_texture = asset.textures[asset_material.emissiveTexture.value().textureIndex];
+			if (asset_texture.imageIndex.has_value()) {
+				const auto &image = images[asset_texture.imageIndex.value()];
+				RE::Texture::Shared texture{
+					RE::Texture::create(
+							image.width, image.height,
+							RE::Texture::UsageFlags::SAMPLER,
+							RE::Texture::Format::R8G8B8A8_UNORM_SRGB)
+				};
+				RE::Texture::uploadBuffer(
+						texture.handle, image.buffer, 0,
+						static_cast<size_t>(image.width) *
+								static_cast<size_t>(image.height) *
+								static_cast<size_t>(image.channels));
+				if (asset_texture.samplerIndex.has_value()) {
+					const auto &sampler = samplers[asset_texture.samplerIndex.value()];
+					RE::Texture::setSampler(texture.handle, sampler.handle);
+				}
+				RE::Material::setEmissiveTexture(material.handle,
+						texture.handle); // tex coord index transform
+			}
+		}
+		if (asset_material.occlusionTexture.has_value()) {
+			auto &asset_texture = asset.textures[asset_material.occlusionTexture.value().textureIndex];
+			if (asset_texture.imageIndex.has_value()) {
+				const auto &image = images[asset_texture.imageIndex.value()];
+				RE::Texture::Shared texture{
+					RE::Texture::create(
+							image.width, image.height,
+							RE::Texture::UsageFlags::SAMPLER,
+							RE::Texture::Format::R8G8B8A8_UNORM)
+				};
+				RE::Texture::uploadBuffer(
+						texture.handle, image.buffer, 0,
+						static_cast<size_t>(image.width) *
+								static_cast<size_t>(image.height) *
+								static_cast<size_t>(image.channels));
+				if (asset_texture.samplerIndex.has_value()) {
+					const auto &sampler = samplers[asset_texture.samplerIndex.value()];
+					RE::Texture::setSampler(texture.handle, sampler.handle);
+				}
+				RE::Material::setOcclusionTexture(material.handle,
+						texture.handle); // tex coord index transform
+			}
+		}
+		if (asset_material.pbrData.metallicRoughnessTexture.has_value()) {
+			auto &asset_texture = asset.textures[asset_material.pbrData.metallicRoughnessTexture.value().textureIndex];
+			if (asset_texture.imageIndex.has_value()) {
+				const auto &image = images[asset_texture.imageIndex.value()];
+				RE::Texture::Shared texture{
+					RE::Texture::create(
+							image.width, image.height,
+							RE::Texture::UsageFlags::SAMPLER,
+							RE::Texture::Format::R8G8B8A8_UNORM)
+				};
+				RE::Texture::uploadBuffer(
+						texture.handle, image.buffer, 0,
+						static_cast<size_t>(image.width) *
+								static_cast<size_t>(image.height) *
+								static_cast<size_t>(image.channels));
+				if (asset_texture.samplerIndex.has_value()) {
+					const auto &sampler = samplers[asset_texture.samplerIndex.value()];
+					RE::Texture::setSampler(texture.handle, sampler.handle);
+				}
+				RE::Material::setMetallicRoughnessTexture(material.handle,
+						texture.handle); // tex coord index transform
+			}
+		}
+		materials.push_back(material);
+	}
+	return std::move(materials);
+}
+
+[[nodiscard]] std::vector<RE::Mesh::Shared>
+loadMeshes(const fastgltf::Asset &asset, const std::vector<RE::Material::Shared> &materials) {
+	setStatusMessage("Loading meshes from GLTF file");
+	std::vector<RE::Mesh::Shared> meshes;
+	for (const auto &asset_mesh : asset.meshes) {
+		RE::Mesh::Arg mesh_data;
+		for (auto &&primitive : asset_mesh.primitives) {
+			if (primitive.type != fastgltf::PrimitiveType::Triangles) {
+				continue;
+			}
+			mesh_data.primitives.emplace_back();
+			auto &prim_data = mesh_data.primitives.back();
+			prim_data.type = RE::Mesh::Primitive::Type::TRIANGLELIST;
+			if (primitive.materialIndex.has_value()) {
+				prim_data.material = materials[primitive.materialIndex.value()].handle;
+			} else {
+				prim_data.material = { 0, 0 };
+			}
+
+			// load indexes
+			{
+				const fastgltf::Accessor &indexaccessor =
+						asset.accessors[primitive.indicesAccessor.value()];
+				prim_data.index_count = indexaccessor.count;
+				if (prim_data.index_count <= UINT16_MAX) {
+					prim_data.attrs_data[static_cast<uint32_t>(RE::Vertex::AttributeIndex::INDEX)] =
+							std::make_unique<uint8_t[]>(indexaccessor.count * sizeof(uint16_t));
+				} else {
+					prim_data.attrs_data[static_cast<uint32_t>(RE::Vertex::AttributeIndex::INDEX)] =
+							std::make_unique<uint8_t[]>(indexaccessor.count * sizeof(uint32_t));
+				}
+				uint32_t arr_idx = 0;
+				fastgltf::iterateAccessor<uint32_t>(
+						asset, indexaccessor, [&](uint32_t idx) {
+							if (prim_data.index_count <= UINT16_MAX) {
+								uint16_t cast_idx = static_cast<uint16_t>(idx);
+								memcpy(prim_data.attrs_data[static_cast<uint32_t>(RE::Vertex::AttributeIndex::INDEX)].get() + (arr_idx * sizeof(uint16_t)), &cast_idx, sizeof(uint16_t));
+							} else {
+								memcpy(prim_data.attrs_data[static_cast<uint32_t>(RE::Vertex::AttributeIndex::INDEX)].get() + (arr_idx * sizeof(uint32_t)), &idx, sizeof(uint32_t));
+							}
+							arr_idx++;
+						});
+			}
+
+			// load vertex positions
+			{
+				const fastgltf::Accessor &posAccessor =
+						asset.accessors[primitive.findAttribute("POSITION")->accessorIndex];
+				prim_data.attrs_data[static_cast<uint32_t>(RE::Vertex::AttributeIndex::POSITION)] =
+						std::make_unique<uint8_t[]>(posAccessor.count * sizeof(glm::vec3));
+				prim_data.vert_count = posAccessor.count;
+				fastgltf::iterateAccessorWithIndex<glm::vec3>(
+						asset, posAccessor, [&](glm::vec3 v, size_t index) { //! maybe add epsilon to box size
+							mesh_data.aabb.min.x = std::min(v.x, mesh_data.aabb.min.x);
+							mesh_data.aabb.min.y = std::min(v.y, mesh_data.aabb.min.y);
+							mesh_data.aabb.min.z = std::min(v.z, mesh_data.aabb.min.z);
+							mesh_data.aabb.max.x = std::max(v.x, mesh_data.aabb.max.x);
+							mesh_data.aabb.max.y = std::max(v.y, mesh_data.aabb.max.y);
+							mesh_data.aabb.max.z = std::max(v.z, mesh_data.aabb.max.z);
+							memcpy(prim_data.attrs_data[static_cast<uint32_t>(RE::Vertex::AttributeIndex::POSITION)].get() + (index * sizeof(glm::vec3)), glm::value_ptr(v), sizeof(glm::vec3));
+						});
+			}
+
+			// load UV
+			{
+				auto at_it = primitive.findAttribute("TEXCOORD_0");
+				if (at_it != primitive.attributes.end()) {
+					const fastgltf::Accessor &uvAccessor =
+							asset.accessors[at_it->accessorIndex];
+					prim_data.attrs_data[static_cast<uint32_t>(RE::Vertex::AttributeIndex::UV)] =
+							std::make_unique<uint8_t[]>(uvAccessor.count * sizeof(glm::vec2));
+					fastgltf::iterateAccessorWithIndex<glm::vec2>(
+							asset, uvAccessor, [&](glm::vec2 v, size_t index) {
+								glm::vec2 pv = v;
+								memcpy(prim_data.attrs_data[static_cast<uint32_t>(RE::Vertex::AttributeIndex::UV)].get() + (index * sizeof(glm::vec2)), glm::value_ptr(pv), sizeof(glm::vec2));
+							});
+				}
+			}
+
+			// load vertex normals
+			auto normals = primitive.findAttribute("NORMAL");
+			if (normals != primitive.attributes.end()) {
+				const fastgltf::Accessor &normalAccessor =
+						asset.accessors[normals->accessorIndex];
+				prim_data.attrs_data[static_cast<uint32_t>(RE::Vertex::AttributeIndex::NORMAL)] =
+						std::make_unique<uint8_t[]>(normalAccessor.count * sizeof(glm::vec3));
+				fastgltf::iterateAccessorWithIndex<glm::vec3>(
+						asset, normalAccessor,
+						[&](glm::vec3 v, size_t index) {
+							memcpy(prim_data.attrs_data[static_cast<uint32_t>(RE::Vertex::AttributeIndex::NORMAL)].get() + (index * sizeof(glm::vec3)), glm::value_ptr(v), sizeof(glm::vec3));
+						});
+			}
+
+			// load Color
+			{
+				auto colors = primitive.findAttribute("COLOR_0");
+				if (colors != primitive.attributes.end()) {
+					const fastgltf::Accessor &colorAccessor =
+							asset.accessors[colors->accessorIndex];
+					prim_data.attrs_data[static_cast<uint32_t>(RE::Vertex::AttributeIndex::COLOR)] =
+							std::make_unique<uint8_t[]>(colorAccessor.count * sizeof(glm::vec4));
+					fastgltf::iterateAccessorWithIndex<glm::vec4>(
+							asset, colorAccessor, [&](glm::vec4 v, size_t index) {
+								memcpy(prim_data.attrs_data[static_cast<uint32_t>(RE::Vertex::AttributeIndex::COLOR)].get() + (index * sizeof(glm::vec4)), glm::value_ptr(v), sizeof(glm::vec4));
+							});
+				}
+			}
+
+			if (RE::Material::isValid(prim_data.material) &&
+					RE::Texture::isValid(RE::Material::getNormalTexture(prim_data.material)) &&
+					prim_data.attrs_data[static_cast<uint32_t>(RE::Vertex::AttributeIndex::UV)].get() != nullptr &&
+					prim_data.attrs_data[static_cast<uint32_t>(RE::Vertex::AttributeIndex::NORMAL)].get() != nullptr) {
+				prim_data.attrs_data[static_cast<uint32_t>(RE::Vertex::AttributeIndex::TANGENT)] =
+						std::make_unique<uint8_t[]>(
+								prim_data.vert_count * sizeof(glm::vec4));
+
+				auto tangents = primitive.findAttribute("TANGENT");
+				if (tangents != primitive.attributes.end()) {
+					const fastgltf::Accessor &tangentAccessor =
+							asset.accessors[tangents->accessorIndex];
+					fastgltf::iterateAccessorWithIndex<glm::vec4>(
+							asset, asset.accessors[(*tangents).accessorIndex],
+							[&](glm::vec4 v, size_t index) {
+								memcpy(prim_data.attrs_data[static_cast<uint32_t>(RE::Vertex::AttributeIndex::TANGENT)].get() + (index * sizeof(glm::vec4)), glm::value_ptr(v), sizeof(glm::vec4));
+							});
+				} else {
+					memset(
+							prim_data.attrs_data[static_cast<uint32_t>(RE::Vertex::AttributeIndex::TANGENT)].get(),
+							0,
+							prim_data.vert_count * sizeof(glm::vec4));
+
+					generateTangents(prim_data);
+				}
+			}
+		}
+		RE::Mesh::Shared mesh{ RE::Mesh::create(mesh_data) };
+		if (mesh.valid()) {
+			meshes.emplace_back(mesh);
+		}
+	}
+	return std::move(meshes);
+}
+
+[[nodiscard]] std::vector<RE::Camera::Shared>
+loadCameras(const fastgltf::Asset &asset) {
+	setStatusMessage("Loading cameras from GLTF file");
+	std::vector<RE::Camera::Shared> cameras;
+	for (auto &camera : asset.cameras) {
+		if (std::holds_alternative<fastgltf::Camera::Perspective>(camera.camera)) {
+			auto &camera_data =
+					std::get<fastgltf::Camera::Perspective>(camera.camera);
+			RE::Camera::Shared persp_camera{ RE::Camera::create() };
+			if (camera_data.aspectRatio.has_value()) {
+				RE::Camera::setAspectRatio(persp_camera.handle, camera_data.aspectRatio.value());
+			}
+			RE::Camera::setFOV(persp_camera.handle, camera_data.yfov);
+			RE::Camera::setNearPlane(persp_camera.handle, camera_data.znear);
+			RE::Camera::setFarPlane(persp_camera.handle, 100.0f);
+			if (camera_data.zfar.has_value()) {
+				RE::Camera::setFarPlane(persp_camera.handle, camera_data.zfar.value());
+			}
+			cameras.push_back(persp_camera);
+		} else {
+			auto &camera_data =
+					std::get<fastgltf::Camera::Orthographic>(camera.camera);
+			RE::Camera::Shared ortho_camera{ RE::Camera::create() };
+			RE::Camera::setXMag(ortho_camera.handle, camera_data.xmag);
+			RE::Camera::setYMag(ortho_camera.handle, camera_data.ymag);
+			RE::Camera::setNearPlane(ortho_camera.handle, camera_data.znear);
+			RE::Camera::setFarPlane(ortho_camera.handle, camera_data.zfar);
+			cameras.push_back(ortho_camera);
+		}
+		return std::move(cameras);
+	}
+	return std::move(cameras);
+}
+
+void load(std::string file_path) {
+	setStatusMessage("Loading GLTF file");
+	std::string gltf_path = std::filesystem::path(file_path).parent_path().string();
+	auto scene_manager = SceneManager::getSingleton();
+
+	fastgltf::Extensions extensions{};
+	fastgltf::Parser parser(extensions);
+	auto gltfFile = fastgltf::GltfDataBuffer::FromPath(file_path);
+	auto asset = parser.loadGltf(gltfFile.get(), gltf_path,
+			fastgltf::Options::GenerateMeshIndices |
+					fastgltf::Options::LoadExternalBuffers |
+					fastgltf::Options::DecomposeNodeMatrices);
+
+	std::vector<RE::Sampler::Shared> samplers = loadSamplers(asset.get());
+	std::vector<Image> images = loadImages(asset.get(), gltf_path);
+	// std::vector<RE::Texture::Shared> textures =
+	// 		loadTextures(asset.get(), samplers, images);
+	std::vector<RE::Material::Shared> materials =
+			loadMaterials(asset.get(), samplers, images);
+	std::vector<RE::Mesh::Shared> meshes = loadMeshes(asset.get(), materials);
+	std::vector<RE::Camera::Shared> cameras = loadCameras(asset.get());
+
+	for (const auto &asset_scene : asset->scenes) {
+		scene_manager->scenes.emplace_back();
+		Scene &scene = scene_manager->scenes.back();
+
+		std::queue<std::pair<size_t, entt::entity>> q;
+		for (const auto &root_node : asset_scene.nodeIndices) {
+			q.push({ root_node, entt::null });
+		}
+		while (not q.empty()) {
+			const auto [curr_node_index, parent_node] = q.front();
+			q.pop();
+			auto node = scene.nodes.create();
+			const auto &asset_node = asset->nodes[curr_node_index];
+			if (not asset_node.name.empty()) {
+				scene.nodes.emplace<Tag>(node, std::string(asset_node.name));
+			}
+			if (parent_node != entt::null) {
+				if (not scene.nodes.all_of<fastgltf::MaybeSmallVector<Child>>(
+							parent_node)) {
+					scene.nodes.emplace<fastgltf::MaybeSmallVector<Child>>(parent_node);
+				} //! add tied update logic
+				scene.nodes.get<fastgltf::MaybeSmallVector<Child>>(parent_node)
+						.push_back({ node });
+				scene.nodes.emplace<Parent>(node,
+						parent_node); //! add tied update logic
+			}
+			if (asset->nodes[curr_node_index].meshIndex.has_value()) {
+				scene.nodes.emplace<RenderableMesh>(
+						node, meshes[asset_node.meshIndex.value()]);
+			}
+			if (asset_node.cameraIndex.has_value()) {
+				scene.nodes.emplace<RE::Camera::Shared>(
+						node, cameras[asset_node.cameraIndex.value()]);
+			}
+			if (std::holds_alternative<fastgltf::math::fmat<4, 4>>(
+						asset_node.transform)) {
+				glm::vec3 s;
+				glm::quat r;
+				glm::vec3 t;
+				glm::vec3 sk;
+				glm::vec4 p;
+				glm::decompose(glm::make_mat4x4(std::get<fastgltf::math::fmat<4, 4>>(
+									   asset_node.transform)
+											   .data()),
+						s, r, t, sk, p);
+				scene.nodes.emplace<Transform>(node, t, r, s);
+			} else {
+				auto &trs = std::get<fastgltf::TRS>(asset_node.transform);
+				auto t = glm::make_vec3(trs.translation.data());
+				auto r = glm::make_quat(trs.rotation.data());
+				auto s = glm::make_vec3(trs.scale.data());
+				scene.nodes.emplace<Transform>(node, t, r, s);
+			}
+			for (const auto &child_node_index : asset_node.children) {
+				q.push({ child_node_index, node });
+			}
+		}
+		if (not asset_scene.name.empty()) {
+			scene.name = asset_scene.name;
+		}
+		if (scene.nodes.view<RE::Camera::Shared>().size() == 0) {
+			auto node = scene.nodes.create();
+			RE::Camera::Shared camera{ RE::Camera::create() };
+			RE::Camera::setAspectRatio(camera.handle, 1.77);
+			RE::Camera::setFOV(camera.handle, glm::radians(75.0f));
+			RE::Camera::setNearPlane(camera.handle, .1f);
+			RE::Camera::setFarPlane(camera.handle, 1000.0f);
+			scene.nodes.emplace<RE::Camera::Shared>(node, camera);
+			scene.nodes.emplace<Tag>(node, "Default Camera");
+			scene.active_camera_node = node;
+		}
+	}
+
+	scene_manager->active_scene_index = 0;
+	if (asset->defaultScene.has_value()) {
+		scene_manager->active_scene_index = asset->defaultScene.value();
+	}
+	setStatusMessage("GLTF file loaded");
+}

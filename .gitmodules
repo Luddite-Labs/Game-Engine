@@ -10,6 +10,33 @@
 [submodule "external/glm"]
 	path = external/glm
 	url = https://github.com/g-truc/glm
-[submodule "external/clay"]
-	path = external/clay
-	url = https://github.com/nicbarker/clay
+[submodule "external/SDL_image"]
+	path = external/SDL_image
+	url = https://github.com/libsdl-org/SDL_image
+[submodule "external/imgui"]
+	path = external/imgui
+	url = https://github.com/ocornut/imgui/
+[submodule "external/fastgltf"]
+	path = external/fastgltf
+	url = https://github.com/spnda/fastgltf
+[submodule "external/stb"]
+	path = external/stb
+	url = https://github.com/nothings/stb
+[submodule "external/entt"]
+	path = external/entt
+	url = https://github.com/skypjack/entt
+[submodule "external/soa_vector"]
+	path = external/soa_vector
+	url = https://github.com/Dwarfobserver/soa_vector/
+[submodule "external/ImGuizmo"]
+	path = external/ImGuizmo
+	url = https://github.com/CedricGuillemet/ImGuizmo
+[submodule "external/implot"]
+	path = external/implot
+	url = https://github.com/epezent/implot
+[submodule "external/slang"]
+	path = external/slang
+	url = https://github.com/shader-slang/slang
+[submodule "external/MikkTSpace"]
+	path = external/MikkTSpace
+	url = https://github.com/mmikk/MikkTSpace/

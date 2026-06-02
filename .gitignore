@@ -1,3 +1,9 @@
+# data
+data/
+
+# clang
+.cache/
+
 # IDE files/folders
 .vscode/
 .vs/
@@ -5,5 +11,9 @@
 # Build
 [Oo]ut/
 [Bb]uild/
+__output/
+CMakeSettings.json
 
 .DS_Store
+
+.VSCodeCounter/

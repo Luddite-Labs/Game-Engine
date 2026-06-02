@@ -1,6 +1,9 @@
 cmake_minimum_required(VERSION 3.16)
 
 option(GAME_ENGINE_DEBUG_MODE "Enable debug mode" ON)
+set(GAME_ENGINE_DEFAULT_SHADER_DIR "${CMAKE_SOURCE_DIR}/src/renderer/shaders")
+set(GAME_ENGINE_DEFAULT_DATA_DIR "${CMAKE_BINARY_DIR}/../data/")
+set(GAME_ENGINE_BUILD_DIR "${CMAKE_BINARY_DIR}/")
 
 # set the output directory for built objects.
 # This makes sure that the dynamic library goes into the build directory automatically.
@@ -30,22 +33,63 @@ endif()
 
 # Configuration file
 configure_file(${CMAKE_SOURCE_DIR}/.editorconfig .editorconfig COPYONLY)
+configure_file(${CMAKE_SOURCE_DIR}/imgui.ini imgui.ini COPYONLY)
 
+file(GLOB IMGUI_LIB_FILES external/imgui/*)
+file(GLOB IMPLOT_LIB_FILES external/implot/*)
+file(GLOB IMGUIZMO_LIB_FILES external/ImGuizmo/*)
 file( GLOB_RECURSE SOURCE_FILES src/* )
+list(FILTER SOURCE_FILES EXCLUDE REGEX ".*\\.hlsl$")
 target_sources(${EXECUTABLE_NAME} 
-PRIVATE 
-	${SOURCE_FILES}
+    PRIVATE ${SOURCE_FILES}
+    ${IMGUI_LIB_FILES}
+    ${IMPLOT_LIB_FILES}
+    ${IMGUIZMO_LIB_FILES}
+    external/MikkTSpace/mikktspace.h
+    external/MikkTSpace/mikktspace.c
+    external/imgui/backends/imgui_impl_sdlgpu3.cpp
+    external/imgui/backends/imgui_impl_sdl3.cpp
 )
 target_include_directories( ${EXECUTABLE_NAME}
 	PRIVATE ${CMAKE_SOURCE_DIR}/src/
     PUBLIC ${CMAKE_BINARY_DIR}/
+    PRIVATE external/ImGuizmo/
+    PRIVATE external/MikkTSpace/
+    PRIVATE external/soa_vector/
+    PRIVATE external/imgui/
+    PRIVATE external/stb/
+    PRIVATE external/implot/
 )
 target_compile_definitions( ${EXECUTABLE_NAME}
 	PRIVATE GAME_ENGINE_DEBUG_MODE
+    PRIVATE -DGAME_ENGINE_DEFAULT_SHADER_DIR="${GAME_ENGINE_DEFAULT_SHADER_DIR}"
+    PRIVATE -DGAME_ENGINE_DEFAULT_DATA_DIR="${GAME_ENGINE_DEFAULT_DATA_DIR}"
+    PRIVATE -DGAME_ENGINE_BUILD_DIR="${GAME_ENGINE_BUILD_DIR}"
 )
 
+include(FetchContent)
+FetchContent_Declare(
+  googletest
+  URL https://github.com/google/googletest/archive/03597a01ee50ed33e9dfd640b249b4be3799d395.zip
+)
+# For Windows: Prevent overriding the parent project's compiler/linker settings
+set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+FetchContent_MakeAvailable(googletest)
 # glm
+target_compile_definitions(${EXECUTABLE_NAME}
+    PRIVATE GLM_ENABLE_EXPERIMENTAL
+    PRIVATE GLM_FORCE_DEPTH_ZERO_TO_ONE
+    PRIVATE GLM_FORCE_RADIANS
+)
 add_subdirectory( external/glm )
+add_subdirectory( external/entt )
+add_subdirectory( external/fastgltf )
+add_subdirectory( external/slang )
+
+add_custom_command(TARGET ${EXECUTABLE_NAME} POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        "${CMAKE_SOURCE_DIR}/lib"
+        $<TARGET_FILE_DIR:${EXECUTABLE_NAME}>)
 
 # What is iosLaunchScreen.storyboard? This file describes what Apple's mobile platforms
 # should show the user while the application is starting up. If you don't include one,
@@ -59,7 +103,7 @@ if(APPLE)
     target_sources("${EXECUTABLE_NAME}" PRIVATE "src/logo.png")
 endif()
 
-target_compile_features(${EXECUTABLE_NAME} PUBLIC cxx_std_20)
+target_compile_features(${EXECUTABLE_NAME} PRIVATE cxx_std_20)
 
 # on Web targets, we need CMake to generate a HTML webpage. 
 if(EMSCRIPTEN)
@@ -68,10 +112,14 @@ endif()
 
 # we use EXCLUDE_FROM_ALL so that its install targets and configs don't
 # pollute upwards into our configuration.
+set(SDL_SHARED ON)
 add_subdirectory(external/SDL EXCLUDE_FROM_ALL)
 
 set(SDLTTF_VENDORED ON) # tell SDL_ttf to build its own dependencies
 add_subdirectory(external/SDL_ttf EXCLUDE_FROM_ALL)	
+
+# set(SDLSHADERCROSS_VENDORED ON)
+# add_subdirectory(external/SDL_shadercross EXCLUDE_FROM_ALL)	
 
 set(SDLMIXER_MIDI_NATIVE OFF)     # disable formats we don't use to make the build faster and smaller. Also some of these don't work on all platforms so you'll need to do some experimentation.
 set(SDLMIXER_GME OFF)
@@ -81,16 +129,22 @@ set(SDLMIXER_OPUS OFF)
 set(SDLMIXER_VENDORED ON)   # tell SDL_mixer to build its own dependencies
 add_subdirectory(external/SDL_mixer EXCLUDE_FROM_ALL)
 
-add_library(clay INTERFACE)
-target_include_directories(clay INTERFACE ${CMAKE_SOURCE_DIR}/external/clay/)
-
+set(SDLIMAGE_VENDORED OFF)
+set(SDLIMAGE_AVIF OFF)	# disable formats we don't use to make the build faster and smaller.
+set(SDLIMAGE_BMP OFF)
+set(SDLIMAGE_WEBP OFF)
+add_subdirectory(external/SDL_image EXCLUDE_FROM_ALL)
 
 target_link_libraries(${EXECUTABLE_NAME} PUBLIC 
 	SDL3::SDL3
 	SDL3_ttf::SDL3_ttf      # remove if you are not using SDL_ttf
     SDL3_mixer::SDL3_mixer  # remove if you are not using SDL_mixer
-    glm
-    clay
+    SDL3_image::SDL3_image
+    # SDL3_shadercross::SDL3_shadercross
+    EnTT::EnTT
+    PRIVATE glm::glm-header-only
+    slang
+    fastgltf
 )
 target_compile_definitions(${EXECUTABLE_NAME} PUBLIC SDL_MAIN_USE_CALLBACKS)
 
@@ -172,3 +226,25 @@ if(CMAKE_SYSTEM_NAME MATCHES "Darwin")
     set(CPACK_GENERATOR "DragNDrop")
     include(CPack)
 endif()
+
+enable_testing()
+
+file( GLOB_RECURSE TEST_FILES tests/* )
+add_executable(
+  tests
+)
+target_sources(tests 
+    PRIVATE ${TEST_FILES}
+)
+target_include_directories(tests 
+    PRIVATE ${CMAKE_SOURCE_DIR}/src/
+    PUBLIC ${CMAKE_BINARY_DIR}/
+)
+target_link_libraries(
+  tests
+  GTest::gtest_main
+  glm::glm-header-only
+)
+
+include(GoogleTest)
+gtest_discover_tests(tests)

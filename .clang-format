@@ -1,1 +1,28 @@
-BasedOnStyle: llvm
+BasedOnStyle: LLVM
+Standard: c++20
+TabWidth: 4
+UseTab: Always
+RemoveSemicolon: true
+PackConstructorInitializers: NextLine
+ObjCBlockIndentWidth: 4
+KeepEmptyLinesAtTheStartOfBlocks: false
+InsertBraces: true
+IndentWidth: 4
+IndentCaseLabels: true
+ConstructorInitializerIndentWidth: 8
+ContinuationIndentWidth: 8
+Cpp11BracedListStyle: false
+ColumnLimit: 0
+BreakConstructorInitializers: AfterColon
+AttributeMacros:
+  - _ALWAYS_INLINE_
+  - _FORCE_INLINE_
+  - _NO_INLINE_
+AllowShortFunctionsOnASingleLine: Inline
+AllowAllParametersOfDeclarationOnNextLine: false
+AlignOperands: DontAlign
+AlignTrailingComments:
+  Kind: Never
+  OverEmptyLines: 0
+AlignAfterOpenBracket: DontAlign
+AccessModifierOffset: -4
